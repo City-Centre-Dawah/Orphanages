@@ -1,0 +1,137 @@
+"""
+Django Admin for expense models with filters, actions, and budget vs actual view.
+"""
+
+from django.contrib import admin
+from django.utils.html import format_html
+from django.db.models import Sum, Q, F, DecimalField
+from django.db.models.functions import Coalesce
+from .models import Budget, Expense, ProjectBudget, ProjectExpense, ExchangeRate
+
+
+@admin.register(Budget)
+class BudgetAdmin(admin.ModelAdmin):
+    list_display = [
+        "site",
+        "category",
+        "financial_year",
+        "annual_amount",
+        "actual_spend_display",
+        "remaining_display",
+        "pct_used_display",
+    ]
+    list_filter = ["site", "financial_year", "category"]
+    search_fields = ["category__name", "site__name"]
+
+    def get_queryset(self, request):
+        from django.db.models import Value
+
+        qs = super().get_queryset(request)
+        return qs.annotate(
+            actual_spend=Coalesce(
+                Sum(
+                    "category__expenses__amount",
+                    filter=Q(
+                        category__expenses__status__in=["logged", "reviewed"],
+                        category__expenses__expense_date__year=F("financial_year"),
+                        category__expenses__site_id=F("site_id"),
+                    ),
+                ),
+                Value(0),
+                output_field=DecimalField(),
+            )
+        ).annotate(
+            remaining=F("annual_amount") - F("actual_spend"),
+        )
+
+    def actual_spend_display(self, obj):
+        if hasattr(obj, "actual_spend") and obj.actual_spend is not None:
+            return format_html("£{:,.2f}", obj.actual_spend)
+        return "—"
+
+    actual_spend_display.short_description = "Actual Spend"
+
+    def remaining_display(self, obj):
+        if hasattr(obj, "remaining") and obj.remaining is not None:
+            return format_html("£{:,.2f}", obj.remaining)
+        return "—"
+
+    remaining_display.short_description = "Remaining"
+
+    def pct_used_display(self, obj):
+        if hasattr(obj, "actual_spend") and hasattr(obj, "annual_amount"):
+            if obj.annual_amount and obj.annual_amount > 0 and obj.actual_spend is not None:
+                pct = float(obj.actual_spend) * 100 / float(obj.annual_amount)
+                return format_html("{:.1f}%", pct)
+        return "—"
+
+    pct_used_display.short_description = "% Used"
+
+
+@admin.register(Expense)
+class ExpenseAdmin(admin.ModelAdmin):
+    list_display = [
+        "expense_date",
+        "site",
+        "category",
+        "supplier",
+        "amount_display",
+        "status",
+        "channel",
+        "created_by",
+        "created_at",
+    ]
+    list_filter = ["site", "category", "status", "channel", "expense_date"]
+    search_fields = ["supplier", "description", "notes"]
+    date_hierarchy = "expense_date"
+    readonly_fields = ["created_at", "reviewed_at", "exchange_rate_used"]
+    actions = ["mark_reviewed", "mark_queried"]
+
+    def amount_display(self, obj):
+        if obj.amount_local and obj.local_currency:
+            return format_html(
+                "£{} <small>({} {})</small>",
+                obj.amount,
+                obj.amount_local,
+                obj.local_currency,
+            )
+        return format_html("£{}", obj.amount)
+
+    amount_display.short_description = "Amount"
+
+    @admin.action(description="Mark as reviewed")
+    def mark_reviewed(self, request, queryset):
+        from django.utils import timezone
+
+        updated = queryset.update(
+            status="reviewed",
+            reviewed_by=request.user,
+            reviewed_at=timezone.now(),
+        )
+        self.message_user(request, f"{updated} expense(s) marked as reviewed.")
+
+    @admin.action(description="Flag for query")
+    def mark_queried(self, request, queryset):
+        updated = queryset.update(status="queried")
+        self.message_user(request, f"{updated} expense(s) flagged for query.")
+
+
+@admin.register(ProjectBudget)
+class ProjectBudgetAdmin(admin.ModelAdmin):
+    list_display = ["site", "activity_type", "financial_year", "annual_amount"]
+    list_filter = ["site", "financial_year", "activity_type"]
+
+
+@admin.register(ProjectExpense)
+class ProjectExpenseAdmin(admin.ModelAdmin):
+    list_display = ["expense_date", "site", "activity_type", "country", "project", "amount", "status"]
+    list_filter = ["site", "activity_type", "status"]
+    search_fields = ["supplier", "project", "country"]
+    date_hierarchy = "expense_date"
+
+
+@admin.register(ExchangeRate)
+class ExchangeRateAdmin(admin.ModelAdmin):
+    list_display = ["from_currency", "to_currency", "rate", "effective_date", "source"]
+    list_filter = ["from_currency", "effective_date"]
+    date_hierarchy = "effective_date"

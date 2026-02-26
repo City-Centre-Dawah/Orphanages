@@ -2,6 +2,14 @@
 node_modules/
 .pnp
 .pnp.js
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 
 # Build / output
 .next/
@@ -9,6 +17,8 @@ out/
 build/
 dist/
 *.tsbuildinfo
+staticfiles/
+media/
 
 # Environment
 .env
