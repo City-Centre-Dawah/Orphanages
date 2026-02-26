@@ -5,23 +5,19 @@ Budget, Expense, ProjectBudget, ProjectExpense, ExchangeRate
 — as specified in Strategic Architecture Report V3 Section 06.
 """
 
-from django.db import models
 from django.conf import settings
+from django.db import models
 
 
 class Budget(models.Model):
     """02_Budget_Master rows 6-14 — Annual budget per category per site."""
 
-    site = models.ForeignKey(
-        "core.Site", on_delete=models.CASCADE, related_name="budgets"
-    )
+    site = models.ForeignKey("core.Site", on_delete=models.CASCADE, related_name="budgets")
     category = models.ForeignKey(
         "core.BudgetCategory", on_delete=models.CASCADE, related_name="budgets"
     )
     financial_year = models.IntegerField()
-    annual_amount = models.DecimalField(
-        max_digits=12, decimal_places=2, default=0
-    )
+    annual_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -55,9 +51,7 @@ class Expense(models.Model):
         ("debit_card", "Debit Card"),
     ]
 
-    site = models.ForeignKey(
-        "core.Site", on_delete=models.CASCADE, related_name="expenses"
-    )
+    site = models.ForeignKey("core.Site", on_delete=models.CASCADE, related_name="expenses")
     category = models.ForeignKey(
         "core.BudgetCategory",
         on_delete=models.CASCADE,
@@ -73,30 +67,18 @@ class Expense(models.Model):
     expense_date = models.DateField()
     supplier = models.CharField(max_length=200)
     description = models.CharField(max_length=500, blank=True)
-    payment_method = models.CharField(
-        max_length=20, choices=PAYMENT_CHOICES, default="cash"
-    )
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_CHOICES, default="cash")
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    amount_local = models.DecimalField(
-        max_digits=14, decimal_places=2, null=True, blank=True
-    )
+    amount_local = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     local_currency = models.CharField(max_length=3, blank=True)
-    exchange_rate_used = models.DecimalField(
-        max_digits=12, decimal_places=6, null=True, blank=True
-    )
+    exchange_rate_used = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
     receipt_ref = models.CharField(max_length=100, blank=True)
-    receipt_photo = models.FileField(
-        upload_to="receipts/", blank=True, null=True
-    )
+    receipt_photo = models.FileField(upload_to="receipts/", blank=True, null=True)
     notes = models.TextField(blank=True)
 
     # System fields
-    status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default="logged"
-    )
-    channel = models.CharField(
-        max_length=20, choices=CHANNEL_CHOICES, default="web"
-    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="logged")
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default="web")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -124,18 +106,14 @@ class Expense(models.Model):
 class ProjectBudget(models.Model):
     """11_Other_Activities rows 8-12 — Project budget per activity type."""
 
-    site = models.ForeignKey(
-        "core.Site", on_delete=models.CASCADE, related_name="project_budgets"
-    )
+    site = models.ForeignKey("core.Site", on_delete=models.CASCADE, related_name="project_budgets")
     activity_type = models.ForeignKey(
         "core.ActivityType",
         on_delete=models.CASCADE,
         related_name="project_budgets",
     )
     financial_year = models.IntegerField()
-    annual_amount = models.DecimalField(
-        max_digits=12, decimal_places=2, default=0
-    )
+    annual_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     notes = models.TextField(blank=True)
 
     class Meta:
@@ -159,9 +137,7 @@ class ProjectExpense(models.Model):
         ("debit_card", "Debit Card"),
     ]
 
-    site = models.ForeignKey(
-        "core.Site", on_delete=models.CASCADE, related_name="project_expenses"
-    )
+    site = models.ForeignKey("core.Site", on_delete=models.CASCADE, related_name="project_expenses")
     activity_type = models.ForeignKey(
         "core.ActivityType",
         on_delete=models.CASCADE,
@@ -179,25 +155,15 @@ class ProjectExpense(models.Model):
     project = models.CharField(max_length=200, blank=True)
     supplier = models.CharField(max_length=200)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    amount_local = models.DecimalField(
-        max_digits=14, decimal_places=2, null=True, blank=True
-    )
+    amount_local = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     local_currency = models.CharField(max_length=3, blank=True)
-    exchange_rate_used = models.DecimalField(
-        max_digits=12, decimal_places=6, null=True, blank=True
-    )
-    payment_method = models.CharField(
-        max_length=20, choices=PAYMENT_CHOICES, default="cash"
-    )
+    exchange_rate_used = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_CHOICES, default="cash")
     receipt_ref = models.CharField(max_length=100, blank=True)
-    receipt_photo = models.FileField(
-        upload_to="receipts/projects/", blank=True, null=True
-    )
+    receipt_photo = models.FileField(upload_to="receipts/projects/", blank=True, null=True)
     notes = models.TextField(blank=True)
 
-    status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default="logged"
-    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="logged")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

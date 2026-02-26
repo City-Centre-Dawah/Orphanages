@@ -6,12 +6,12 @@ FundingSources, ActivityTypes — as specified in Strategic Architecture Report.
 """
 
 from decimal import Decimal
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from core.models import Organisation, Site, BudgetCategory, FundingSource, ActivityType
+from core.models import ActivityType, BudgetCategory, FundingSource, Organisation, Site
 from expenses.models import Budget, ExchangeRate
-
 
 # Workbook 01_Settings — 9 budget categories
 BUDGET_CATEGORIES = [

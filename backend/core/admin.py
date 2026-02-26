@@ -4,15 +4,16 @@ Django Admin for core models.
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+
 from .models import (
-    Organisation,
-    Site,
-    User,
+    ActivityType,
+    AuditLog,
     BudgetCategory,
     FundingSource,
-    ActivityType,
+    Organisation,
+    Site,
     SyncQueue,
-    AuditLog,
+    User,
 )
 
 
@@ -36,14 +37,20 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ["username", "email", "phone", "first_name", "last_name"]
 
     fieldsets = BaseUserAdmin.fieldsets + (
-        (None, {
-            "fields": ("organisation", "site", "phone", "role"),
-        }),
+        (
+            None,
+            {
+                "fields": ("organisation", "site", "phone", "role"),
+            },
+        ),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        (None, {
-            "fields": ("organisation", "site", "phone", "role"),
-        }),
+        (
+            None,
+            {
+                "fields": ("organisation", "site", "phone", "role"),
+            },
+        ),
     )
 
 

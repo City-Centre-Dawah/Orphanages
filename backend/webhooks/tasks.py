@@ -3,14 +3,17 @@ Celery tasks for webhook processing.
 
 Parse WhatsApp message (e.g. "Food 50000 rice Kalerwe"), resolve category,
 convert currency, create Expense, fetch receipt photo, send SMS confirmation.
+On parse failure, sends WhatsApp error feedback to user.
 """
 
 import logging
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 
 from celery import shared_task
-from django.conf import settings
+
+from webhooks.sms import send_sms
+from webhooks.whatsapp_reply import send_whatsapp_reply
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +34,12 @@ def process_whatsapp_message(
     Expected format: "Category Amount [description]"
     e.g. "Food 50000 rice Kalerwe" or "Food 50000"
     """
-    from django.core.files.base import ContentFile
-    from core.models import Organisation, Site, User, BudgetCategory, FundingSource
-    from expenses.models import Expense, ExchangeRate
-    from webhooks.models import WhatsAppIncomingMessage
     import requests
+    from django.core.files.base import ContentFile
+
+    from core.models import BudgetCategory, User
+    from expenses.models import ExchangeRate, Expense
+    from webhooks.models import WhatsAppIncomingMessage
 
     raw_post = raw_post or {}
 
@@ -51,13 +55,18 @@ def process_whatsapp_message(
         },
     )
 
+    def _reply_error(msg: str) -> None:
+        send_whatsapp_reply(to_number, from_number, msg)
+
     if not body or not body.strip():
         logger.warning("Empty message body for %s", message_sid)
+        _reply_error("Please send: Category Amount [description]. Example: Food 50000 rice")
         return
 
     parts = body.strip().split()
     if len(parts) < 2:
         logger.warning("Message too short for expense: %s", body[:50])
+        _reply_error("Format: Category Amount [description]. Example: Food 50000 rice")
         return
 
     category_name = parts[0]
@@ -65,6 +74,7 @@ def process_whatsapp_message(
         amount_local = Decimal(parts[1].replace(",", ""))
     except (ValueError, IndexError):
         logger.warning("Invalid amount in message: %s", body[:50])
+        _reply_error("Invalid amount. Use numbers only. Example: Food 50000 rice")
         return
 
     description = " ".join(parts[2:]) if len(parts) > 2 else ""
@@ -73,16 +83,19 @@ def process_whatsapp_message(
     user = User.objects.filter(phone=from_number).first()
     if not user:
         logger.warning("No user found for phone %s", from_number)
+        _reply_error("Your number is not registered. Contact your admin.")
         return
 
     site = user.site
     if not site:
         logger.warning("User %s has no site assignment", user.username)
+        _reply_error("No site assigned to your account. Contact your admin.")
         return
 
     org = user.organisation or (site.organisation if site else None)
     if not org:
         logger.warning("No organisation for user/site")
+        _reply_error("Account configuration error. Contact your admin.")
         return
 
     # Resolve category (case-insensitive)
@@ -91,6 +104,7 @@ def process_whatsapp_message(
     ).first()
     if not category:
         logger.warning("Category not found: %s", category_name)
+        _reply_error(f"Category '{category_name}' not found. Check spelling.")
         return
 
     # Currency conversion
@@ -151,5 +165,7 @@ def process_whatsapp_message(
 
     logger.info("Created expense %s from WhatsApp %s", expense.id, message_sid)
 
-    # TODO: Send SMS confirmation via Africa's Talking (Phase 1.6)
-    # send_sms_confirmation.delay(user.phone, expense)
+    # SMS confirmation via Africa's Talking
+    if user.phone:
+        msg = f"Expense logged: {category.name} {amount_local} {site.default_currency or 'GBP'}. Ref: {expense.id}"
+        send_sms(user.phone, msg)

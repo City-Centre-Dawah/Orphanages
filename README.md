@@ -105,6 +105,20 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 | Config management | django-environ | 0.11+ |
 | Package manager | pip | requirements.txt |
 
+### Gap-Free Build
+
+| Area | Status |
+|------|--------|
+| **Tests** | core, expenses, webhooks, api |
+| **REST API** | DRF at `/api/v1/` (sites, categories, expenses, sync) |
+| **Linting** | ruff + black (pyproject.toml) |
+| **CI/CD** | GitHub Actions (lint + test on push/PR) |
+| **SMS confirmation** | Africa's Talking (optional) |
+| **WhatsApp error feedback** | Replies on parse failure |
+| **Rate limiting** | 60/min on webhook (django-ratelimit) |
+| **SyncQueue** | Offline-first push → Celery process |
+| **ASGI** | config/asgi.py for future WebSockets |
+
 ---
 
 ## Quick Start (Local Development)
@@ -194,6 +208,7 @@ celery -A config worker -l info
 |-----|---------|
 | http://localhost:8000/admin/ | Django Admin dashboard |
 | http://localhost:8000/health/ | Health check (DB connectivity) |
+| http://localhost:8000/api/v1/ | REST API (Token auth: `/api/v1/auth/token/`) |
 | http://localhost:8000/webhooks/whatsapp/ | WhatsApp webhook (POST only) |
 
 ### Local Development Notes

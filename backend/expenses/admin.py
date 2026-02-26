@@ -3,10 +3,11 @@ Django Admin for expense models with filters, actions, and budget vs actual view
 """
 
 from django.contrib import admin
-from django.utils.html import format_html
-from django.db.models import Sum, Q, F, DecimalField
+from django.db.models import DecimalField, F, Q, Sum
 from django.db.models.functions import Coalesce
-from .models import Budget, Expense, ProjectBudget, ProjectExpense, ExchangeRate
+from django.utils.html import format_html
+
+from .models import Budget, ExchangeRate, Expense, ProjectBudget, ProjectExpense
 
 
 @admin.register(Budget)
@@ -124,7 +125,15 @@ class ProjectBudgetAdmin(admin.ModelAdmin):
 
 @admin.register(ProjectExpense)
 class ProjectExpenseAdmin(admin.ModelAdmin):
-    list_display = ["expense_date", "site", "activity_type", "country", "project", "amount", "status"]
+    list_display = [
+        "expense_date",
+        "site",
+        "activity_type",
+        "country",
+        "project",
+        "amount",
+        "status",
+    ]
     list_filter = ["site", "activity_type", "status"]
     search_fields = ["supplier", "project", "country"]
     date_hierarchy = "expense_date"

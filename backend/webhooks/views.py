@@ -3,19 +3,23 @@ WhatsApp webhook handler.
 
 Validates Twilio signature, stores raw message, queues Celery task,
 returns 200 within ~1 second. Idempotency via Redis (MessageSid).
+Rate-limited by IP.
 """
 
 import logging
+
+from django.conf import settings
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from django.conf import settings
+from django_ratelimit.decorators import ratelimit
 
 logger = logging.getLogger(__name__)
 
 
 @csrf_exempt
 @require_POST
+@ratelimit(key="ip", rate="60/m", method="POST", block=True)
 def whatsapp_webhook(request):
     """
     Receive Twilio WhatsApp webhook.
@@ -27,13 +31,12 @@ def whatsapp_webhook(request):
     """
     try:
         from twilio.request_validator import RequestValidator
+
         from webhooks.tasks import process_whatsapp_message
     except ImportError:
         logger.error("Twilio or Celery not configured")
         return HttpResponse("Server configuration error", status=503)
 
-    # Get raw body for signature validation
-    raw_body = request.body
     signature = request.headers.get("X-Twilio-Signature", "")
 
     if settings.TWILIO_AUTH_TOKEN and not signature:
@@ -53,6 +56,7 @@ def whatsapp_webhook(request):
     if message_sid:
         try:
             import redis
+
             r = redis.from_url(settings.REDIS_URL)
             key = f"webhook:whatsapp:{message_sid}"
             if r.exists(key):

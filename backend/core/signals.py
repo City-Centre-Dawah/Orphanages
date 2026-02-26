@@ -5,6 +5,7 @@ AuditLog on all writes — who changed what, when.
 """
 
 import logging
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 

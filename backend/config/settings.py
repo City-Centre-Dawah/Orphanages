@@ -5,7 +5,6 @@ Uses django-environ for environment variable loading.
 See .env.example for required variables.
 """
 
-import os
 from pathlib import Path
 
 import environ
@@ -24,6 +23,8 @@ env = environ.Env(
     CELERY_BROKER_URL=(str, "redis://localhost:6379/1"),
     TWILIO_AUTH_TOKEN=(str, ""),
     TWILIO_ACCOUNT_SID=(str, ""),
+    AFRICAS_TALKING_USERNAME=(str, "sandbox"),
+    AFRICAS_TALKING_API_KEY=(str, ""),
     # DO Spaces (S3-compatible) — leave empty for local filesystem
     USE_SPACES=(bool, False),
     AWS_ACCESS_KEY_ID=(str, ""),
@@ -53,10 +54,13 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
+    "rest_framework.authtoken",
     # Local apps
     "core",
     "expenses",
     "webhooks",
+    "api",
 ]
 
 MIDDLEWARE = [
@@ -83,11 +87,18 @@ DATABASES = {
     )
 }
 
-# Cache / Redis (for Celery broker and idempotency)
+# Cache / Redis (for Celery broker, idempotency, rate limiting)
 REDIS_URL = env(
     "REDIS_URL",
     default="redis://localhost:6379/0",
 )
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://localhost:6379/0"),
+    }
+}
+
 CELERY_BROKER_URL = env(
     "CELERY_BROKER_URL",
     default="redis://localhost:6379/1",
@@ -181,3 +192,18 @@ CELERY_TIMEZONE = TIME_ZONE
 TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="")
 TWILIO_AUTH_TOKEN = env("TWILIO_AUTH_TOKEN", default="")
 TWILIO_WHATSAPP_WEBHOOK_TOKEN = env("TWILIO_WHATSAPP_WEBHOOK_TOKEN", default="")
+
+# DRF
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
+# Africa's Talking (SMS confirmation)
+AFRICAS_TALKING_USERNAME = env("AFRICAS_TALKING_USERNAME")
+AFRICAS_TALKING_API_KEY = env("AFRICAS_TALKING_API_KEY")

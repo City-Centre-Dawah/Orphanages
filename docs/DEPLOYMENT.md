@@ -80,6 +80,10 @@ AWS_S3_ENDPOINT_URL=https://lon1.digitaloceanspaces.com
 
 TWILIO_ACCOUNT_SID=<sid>
 TWILIO_AUTH_TOKEN=<token>
+
+# Optional: SMS confirmation via Africa's Talking
+AFRICAS_TALKING_USERNAME=sandbox
+AFRICAS_TALKING_API_KEY=<api-key>
 ```
 
 ---

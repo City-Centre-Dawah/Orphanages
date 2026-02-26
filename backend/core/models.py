@@ -5,8 +5,8 @@ Organisation, Site, User, BudgetCategory, FundingSource, ActivityType,
 SyncQueue, AuditLog — as specified in Strategic Architecture Report V3 Section 06.
 """
 
-from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.db import models
 
 
 class Organisation(models.Model):
@@ -46,16 +46,10 @@ class User(AbstractUser):
         ("viewer", "Viewer"),
     ]
 
-    organisation = models.ForeignKey(
-        Organisation, on_delete=models.CASCADE, null=True, blank=True
-    )
-    site = models.ForeignKey(
-        Site, on_delete=models.SET_NULL, null=True, blank=True
-    )
+    organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE, null=True, blank=True)
+    site = models.ForeignKey(Site, on_delete=models.SET_NULL, null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True)
-    role = models.CharField(
-        max_length=20, choices=ROLE_CHOICES, default="caretaker"
-    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="caretaker")
 
     def __str__(self):
         return self.get_full_name() or self.username
@@ -117,16 +111,12 @@ class SyncQueue(models.Model):
     ]
 
     client_id = models.CharField(max_length=50)
-    user = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True
-    )
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     table_name = models.CharField(max_length=50)
     record_id = models.CharField(max_length=50, blank=True)
     payload = models.JSONField()
     action = models.CharField(max_length=10, choices=ACTION_CHOICES)
-    status = models.CharField(
-        max_length=10, choices=STATUS_CHOICES, default="queued"
-    )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="queued")
     applied_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -134,9 +124,7 @@ class SyncQueue(models.Model):
 class AuditLog(models.Model):
     """Tamper-evident record of changes. Django signal writes on every save."""
 
-    user = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True
-    )
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     table_name = models.CharField(max_length=50)
     record_id = models.CharField(max_length=50)
     action = models.CharField(max_length=20)
