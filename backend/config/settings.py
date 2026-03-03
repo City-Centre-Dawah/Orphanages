@@ -8,6 +8,7 @@ See .env.example for required variables.
 from pathlib import Path
 
 import environ
+import os
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -45,6 +46,23 @@ if not SECRET_KEY and env("DEBUG"):
 
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://orphanages.ccdawah.org",
+]
+
+SECURE_SSL_REDIRECT = True
+
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
+
 
 # Application definition
 INSTALLED_APPS = [
@@ -55,6 +73,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "storages",
     "rest_framework.authtoken",
     # Local apps
     "core",
@@ -75,6 +94,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
+
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
 
 # Custom user model
 AUTH_USER_MODEL = "core.User"
@@ -149,15 +171,15 @@ if USE_SPACES and env("AWS_ACCESS_KEY_ID") and env("AWS_STORAGE_BUCKET_NAME"):
         "default": {
             "BACKEND": "storages.backends.s3.S3Storage",
             "OPTIONS": {
-                "access_key": env("AWS_ACCESS_KEY_ID"),
-                "secret_key": env("AWS_SECRET_ACCESS_KEY"),
-                "bucket_name": env("AWS_STORAGE_BUCKET_NAME"),
-                "region_name": region,
-                "endpoint_url": endpoint,
-                "location": "media",
-                "file_overwrite": False,
-                "default_acl": "private",
-                "querystring_auth": True,
+      		"access_key": env("AWS_ACCESS_KEY_ID"),
+       		"secret_key": env("AWS_SECRET_ACCESS_KEY"),
+       		"bucket_name": env("AWS_STORAGE_BUCKET_NAME"),
+       		"region_name": env("AWS_S3_REGION_NAME"),
+       		"endpoint_url": env("AWS_S3_ENDPOINT_URL"),
+     	 	"location": "media",
+        	"file_overwrite": False,
+        	"default_acl": None,
+        	"querystring_auth": False,
                 "object_parameters": {"CacheControl": "max-age=86400"},
             },
         },
@@ -207,3 +229,29 @@ REST_FRAMEWORK = {
 # Africa's Talking (SMS confirmation)
 AFRICAS_TALKING_USERNAME = env("AFRICAS_TALKING_USERNAME")
 AFRICAS_TALKING_API_KEY = env("AFRICAS_TALKING_API_KEY")
+
+# Redis Cache Configuration
+if env("REDIS_URL", default=None):
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": env("REDIS_URL"),
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+        }
+    }
+
+
+# ----------------------------
+# Celery Configuration
+# ----------------------------
+
+CELERY_BROKER_URL = env("REDIS_URL")
+CELERY_RESULT_BACKEND = env("REDIS_URL")
+
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+
+CELERY_TIMEZONE = "UTC"
