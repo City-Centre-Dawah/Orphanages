@@ -70,6 +70,9 @@ SECURE_HSTS_PRELOAD = True
 
 # Application definition
 INSTALLED_APPS = [
+    # Unfold must come before django.contrib.admin
+    "unfold",
+    "unfold.contrib.import_export",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -80,6 +83,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "storages",
     "rest_framework.authtoken",
+    "import_export",
     # Allauth (Google OAuth2 for admin login)
     "allauth",
     "allauth.account",
@@ -90,6 +94,7 @@ INSTALLED_APPS = [
     "expenses",
     "webhooks",
     "api",
+    "reports",
 ]
 
 SITE_ID = 1
@@ -269,6 +274,152 @@ SOCIALACCOUNT_PROVIDERS = {
             "secret": env("GOOGLE_OAUTH_CLIENT_SECRET", default=""),
         },
     }
+}
+
+# django-unfold admin theme
+UNFOLD = {
+    "SITE_TITLE": "CCD Orphanage Portal",
+    "SITE_HEADER": "City Centre Dawah",
+    "SITE_SUBHEADER": "Expense Management System",
+    "SITE_DROPDOWN": None,
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": False,
+    "COLORS": {
+        "primary": {
+            "50": "#f0fdf4",
+            "100": "#dcfce7",
+            "200": "#bbf7d0",
+            "300": "#86efac",
+            "400": "#4ade80",
+            "500": "#22c55e",
+            "600": "#16a34a",
+            "700": "#15803d",
+            "800": "#166534",
+            "900": "#14532d",
+            "950": "#052e16",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "Dashboard",
+                "items": [
+                    {
+                        "title": "Reports Dashboard",
+                        "icon": "bar_chart",
+                        "link": "/reports/dashboard/",
+                    },
+                    {
+                        "title": "Monthly Summary (PDF)",
+                        "icon": "picture_as_pdf",
+                        "link": "/reports/monthly-summary/",
+                    },
+                    {
+                        "title": "Budget vs Actual (PDF)",
+                        "icon": "account_balance",
+                        "link": "/reports/budget-vs-actual/",
+                    },
+                ],
+            },
+            {
+                "title": "Expenses",
+                "items": [
+                    {
+                        "title": "Expenses",
+                        "icon": "receipt_long",
+                        "link": "/admin/expenses/expense/",
+                    },
+                    {
+                        "title": "Budgets",
+                        "icon": "savings",
+                        "link": "/admin/expenses/budget/",
+                    },
+                    {
+                        "title": "Exchange Rates",
+                        "icon": "currency_exchange",
+                        "link": "/admin/expenses/exchangerate/",
+                    },
+                    {
+                        "title": "Project Budgets",
+                        "icon": "assignment",
+                        "link": "/admin/expenses/projectbudget/",
+                    },
+                    {
+                        "title": "Project Expenses",
+                        "icon": "engineering",
+                        "link": "/admin/expenses/projectexpense/",
+                    },
+                ],
+            },
+            {
+                "title": "Organisation",
+                "items": [
+                    {
+                        "title": "Organisations",
+                        "icon": "corporate_fare",
+                        "link": "/admin/core/organisation/",
+                    },
+                    {
+                        "title": "Sites",
+                        "icon": "location_on",
+                        "link": "/admin/core/site/",
+                    },
+                    {
+                        "title": "Users",
+                        "icon": "group",
+                        "link": "/admin/core/user/",
+                    },
+                    {
+                        "title": "Budget Categories",
+                        "icon": "category",
+                        "link": "/admin/core/budgetcategory/",
+                    },
+                    {
+                        "title": "Funding Sources",
+                        "icon": "volunteer_activism",
+                        "link": "/admin/core/fundingsource/",
+                    },
+                    {
+                        "title": "Activity Types",
+                        "icon": "local_activity",
+                        "link": "/admin/core/activitytype/",
+                    },
+                ],
+            },
+            {
+                "title": "Messaging",
+                "items": [
+                    {
+                        "title": "WhatsApp Messages",
+                        "icon": "chat",
+                        "link": "/admin/webhooks/whatsappincomingmessage/",
+                    },
+                    {
+                        "title": "Telegram Messages",
+                        "icon": "send",
+                        "link": "/admin/webhooks/telegramincomingmessage/",
+                    },
+                ],
+            },
+            {
+                "title": "System",
+                "items": [
+                    {
+                        "title": "Audit Log",
+                        "icon": "history",
+                        "link": "/admin/core/auditlog/",
+                    },
+                    {
+                        "title": "Sync Queue",
+                        "icon": "sync",
+                        "link": "/admin/core/syncqueue/",
+                    },
+                ],
+            },
+        ],
+    },
 }
 
 # Redis Cache Configuration

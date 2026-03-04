@@ -10,9 +10,12 @@ logger = logging.getLogger(__name__)
 TELEGRAM_API_BASE = "https://api.telegram.org/bot{token}"
 
 
-def send_telegram_reply(chat_id: int, body: str) -> bool:
+def send_telegram_reply(chat_id: int, body: str, parse_mode: str = "") -> bool:
     """
     Send a text message to a Telegram chat via Bot API.
+
+    Args:
+        parse_mode: "MarkdownV2", "HTML", or "" for plain text.
     Returns True on success.
     """
     token = getattr(settings, "TELEGRAM_BOT_TOKEN", "")
@@ -22,6 +25,8 @@ def send_telegram_reply(chat_id: int, body: str) -> bool:
 
     url = f"{TELEGRAM_API_BASE.format(token=token)}/sendMessage"
     payload = {"chat_id": chat_id, "text": body}
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
 
     try:
         resp = requests.post(url, json=payload, timeout=10)

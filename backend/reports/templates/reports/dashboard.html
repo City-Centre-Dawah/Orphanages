@@ -1,0 +1,245 @@
+{% extends "reports/base_report.html" %}
+{% block title %}Dashboard — CCD Reports{% endblock %}
+
+{% block extra_head %}
+<style>
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        padding: 1.25rem;
+        text-align: center;
+    }
+    .stat-value { font-size: 2rem; font-weight: 700; color: #166534; }
+    .stat-label { font-size: 0.85rem; color: #6b7280; margin-top: 0.25rem; }
+    .stat-card.flagged .stat-value { color: #dc2626; }
+    .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+    .chart-container { position: relative; width: 100%; }
+    .budget-gauges { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .gauge-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .gauge-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .gauge-label { font-size: 0.85rem; font-weight: 600; color: #374151; }
+    .gauge-pct { font-size: 0.85rem; font-weight: 700; }
+    .gauge-pct.ok { color: #16a34a; }
+    .gauge-pct.warning { color: #d97706; }
+    .gauge-pct.over { color: #dc2626; }
+    .gauge-bar { background: #e5e7eb; border-radius: 99px; height: 10px; overflow: hidden; }
+    .gauge-fill { height: 100%; border-radius: 99px; transition: width 0.6s ease; }
+    .gauge-fill.ok { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .gauge-fill.warning { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+    .gauge-fill.over { background: linear-gradient(90deg, #f87171, #dc2626); }
+    .gauge-detail { font-size: 0.78rem; color: #9ca3af; margin-top: 0.35rem; }
+    .recent-table { font-size: 0.85rem; }
+    .recent-table td { padding: 0.5rem 0.75rem; }
+    .filter-bar {
+        display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
+        background: white; border-radius: 12px; padding: 1rem 1.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 1.5rem;
+    }
+    @media (max-width: 900px) {
+        .charts-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Filter bar -->
+<form class="filter-bar" method="get">
+    <div class="form-group">
+        <label for="site">Site</label>
+        <select name="site" id="site" onchange="this.form.submit()">
+            <option value="">All Sites</option>
+            {% for s in sites %}
+            <option value="{{ s.id }}" {% if selected_site == s.id|stringformat:"d" %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="year">Year</label>
+        <select name="year" id="year" onchange="this.form.submit()">
+            {% for y in years %}
+            <option value="{{ y }}" {% if selected_year == y %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</form>
+
+<!-- Summary stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">&pound;{{ total_spend|floatformat:2 }}</div>
+        <div class="stat-label">Total Spend (GBP)</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ expense_count }}</div>
+        <div class="stat-label">Expenses Logged</div>
+    </div>
+    <div class="stat-card flagged">
+        <div class="stat-value">{{ flagged_count }}</div>
+        <div class="stat-label">Budget Warnings</div>
+    </div>
+</div>
+
+<!-- Charts row -->
+<div class="charts-grid">
+    <div class="card">
+        <h2>Monthly Spending Trend</h2>
+        <div class="chart-container">
+            <canvas id="trendChart"></canvas>
+        </div>
+    </div>
+    <div class="card">
+        <h2>By Channel</h2>
+        <div class="chart-container">
+            <canvas id="channelChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Category breakdown -->
+<div class="card">
+    <h2>Spend by Category</h2>
+    <div class="chart-container" style="max-height:350px;">
+        <canvas id="categoryChart"></canvas>
+    </div>
+</div>
+
+<!-- Budget gauges -->
+{% if budget_gauges %}
+<div class="card">
+    <h2>Budget Utilisation</h2>
+    <div class="budget-gauges">
+        {% for g in budget_gauges %}
+        <div class="gauge-card">
+            <div class="gauge-header">
+                <span class="gauge-label">{{ g.label }}</span>
+                <span class="gauge-pct {{ g.status }}">{{ g.pct }}%</span>
+            </div>
+            <div class="gauge-bar">
+                <div class="gauge-fill {{ g.status }}" style="width: {% if g.pct > 100 %}100{% else %}{{ g.pct }}{% endif %}%"></div>
+            </div>
+            <div class="gauge-detail">&pound;{{ g.spent|floatformat:2 }} of &pound;{{ g.budget|floatformat:2 }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Recent activity -->
+<div class="card">
+    <h2>Recent Expenses</h2>
+    <table class="recent-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Site</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th class="text-right">Amount</th>
+                <th>Channel</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in recent_expenses %}
+            <tr>
+                <td>{{ e.expense_date|date:"d M" }}</td>
+                <td>{{ e.site.name }}</td>
+                <td>{{ e.category.name }}</td>
+                <td>{{ e.description|truncatewords:6|default:"—" }}</td>
+                <td class="text-right">&pound;{{ e.amount|floatformat:2 }}</td>
+                <td>{{ e.get_channel_display }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center">No expenses yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+    const GREEN = '#16a34a';
+    const GREEN_LIGHT = 'rgba(22,163,74,0.15)';
+    const COLORS = ['#16a34a','#22c55e','#4ade80','#86efac','#166534','#15803d','#14532d','#a3e635','#65a30d','#eab308'];
+
+    // Monthly spending trend (line)
+    new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: {
+            labels: {{ trend_labels|safe }},
+            datasets: [{
+                label: 'Monthly Spend (GBP)',
+                data: {{ trend_values|safe }},
+                borderColor: GREEN,
+                backgroundColor: GREEN_LIGHT,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 4,
+                pointBackgroundColor: GREEN,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { callback: v => '£' + v.toLocaleString() }
+                }
+            }
+        }
+    });
+
+    // Category breakdown (horizontal bar)
+    new Chart(document.getElementById('categoryChart'), {
+        type: 'bar',
+        data: {
+            labels: {{ cat_labels|safe }},
+            datasets: [{
+                label: 'Spend (GBP)',
+                data: {{ cat_values|safe }},
+                backgroundColor: COLORS,
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: { callback: v => '£' + v.toLocaleString() }
+                }
+            }
+        }
+    });
+
+    // Channel doughnut
+    new Chart(document.getElementById('channelChart'), {
+        type: 'doughnut',
+        data: {
+            labels: {{ channel_labels|safe }},
+            datasets: [{
+                data: {{ channel_values|safe }},
+                backgroundColor: COLORS.slice(0, {{ channel_labels|safe }}.length),
+            }]
+        },
+        options: {
+            responsive: true,
+            cutout: '60%',
+            plugins: {
+                legend: { position: 'bottom' },
+            }
+        }
+    });
+</script>
+{% endblock %}

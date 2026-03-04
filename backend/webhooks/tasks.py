@@ -281,17 +281,47 @@ def _check_budget_guardrail(expense, reply_fn):
     return warning
 
 
-def _format_success_message(expense):
-    """Build a consistent success confirmation message."""
+def _format_success_message(expense, channel="whatsapp"):
+    """
+    Build a consistent success confirmation message.
+
+    WhatsApp supports *bold* and _italic_.
+    Telegram supports MarkdownV2 (bold, italic, underline).
+    """
     currency = expense.local_currency or "GBP"
     receipt_status = "attached" if expense.receipt_photo else "none"
-    msg = (
-        f"Logged: {expense.category.name} {expense.amount_local} {currency}"
-    )
-    if currency != "GBP":
-        msg += f" ({expense.amount:.2f} GBP)"
-    msg += f"\nRef: {expense.id}\nReceipt: {receipt_status}"
+
+    if channel == "telegram":
+        # Telegram MarkdownV2: escape special chars in dynamic values
+        cat = _tg_escape(expense.category.name)
+        msg = f"*Expense Logged* \\#`{expense.id}`\n\n"
+        msg += f"*Category:* {cat}\n"
+        msg += f"*Amount:* {_tg_escape(str(expense.amount_local))} {_tg_escape(currency)}"
+        if currency != "GBP":
+            msg += f" \\({_tg_escape(f'{expense.amount:.2f}')} GBP\\)"
+        msg += f"\n*Receipt:* {receipt_status}"
+    else:
+        # WhatsApp: *bold* formatting
+        msg = f"*Expense Logged* #{expense.id}\n\n"
+        msg += f"*Category:* {expense.category.name}\n"
+        msg += f"*Amount:* {expense.amount_local} {currency}"
+        if currency != "GBP":
+            msg += f" ({expense.amount:.2f} GBP)"
+        msg += f"\n*Receipt:* {receipt_status}"
+
     return msg
+
+
+def _tg_escape(text):
+    """Escape special characters for Telegram MarkdownV2."""
+    special = r"_[]()~`>#+-=|{}.!"
+    result = ""
+    for ch in str(text):
+        if ch in special:
+            result += f"\\{ch}"
+        else:
+            result += ch
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -352,7 +382,7 @@ def process_whatsapp_message(
         budget_warning = _check_budget_guardrail(expense, _reply)
 
         # Success: WhatsApp reply (primary) + SMS (fallback)
-        confirmation = _format_success_message(expense)
+        confirmation = _format_success_message(expense, channel="whatsapp")
         if budget_warning:
             confirmation += budget_warning
         _reply(confirmation)
@@ -460,8 +490,8 @@ def process_telegram_message(
         # Budget guardrail check (flag, not block)
         budget_warning = _check_budget_guardrail(expense, _reply)
 
-        # Reply with confirmation directly in Telegram
-        confirmation = _format_success_message(expense)
+        # Reply with confirmation directly in Telegram (MarkdownV2)
+        confirmation = _format_success_message(expense, channel="telegram")
         if budget_warning:
-            confirmation += budget_warning
-        _reply(confirmation)
+            confirmation += _tg_escape(budget_warning)
+        send_telegram_reply(chat_id, confirmation, parse_mode="MarkdownV2")

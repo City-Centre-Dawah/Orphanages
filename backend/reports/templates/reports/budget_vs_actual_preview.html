@@ -1,0 +1,56 @@
+{% extends "reports/base_report.html" %}
+{% block title %}Budget vs Actual: {{ site.name }} — {{ year }}{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <h1 style="font-size:1.5rem;color:#166534;">Budget vs Actual: {{ site.name }} — {{ year }}</h1>
+    <div>
+        <a href="?site={{ site.id }}&year={{ year }}&format=pdf" class="btn btn-primary">Download PDF</a>
+        <a href="/reports/budget-vs-actual/" class="btn btn-outline" style="margin-left:0.5rem;">Back</a>
+    </div>
+</div>
+
+<div class="card">
+    <h2>{{ site.name }} ({{ site.country }}) — Financial Year {{ year }}</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th class="text-right">Budget (GBP)</th>
+                <th class="text-right">Actual Spend</th>
+                <th class="text-right">Remaining</th>
+                <th class="text-right">% Used</th>
+                <th class="text-center">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>{{ row.category }}</td>
+                <td class="text-right">&pound;{{ row.annual_amount|floatformat:2 }}</td>
+                <td class="text-right">&pound;{{ row.actual_spend|floatformat:2 }}</td>
+                <td class="text-right">&pound;{{ row.remaining|floatformat:2 }}</td>
+                <td class="text-right">{{ row.pct_used|floatformat:1 }}%</td>
+                <td class="text-center">
+                    <span class="badge badge-{{ row.status }}">
+                        {% if row.status == "over" %}OVER{% elif row.status == "warning" %}80%+{% else %}OK{% endif %}
+                    </span>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center">No budgets set for this site/year.</td></tr>
+            {% endfor %}
+            {% if rows %}
+            <tr class="total-row">
+                <td>Total</td>
+                <td class="text-right">&pound;{{ total_budget|floatformat:2 }}</td>
+                <td class="text-right">&pound;{{ total_spend|floatformat:2 }}</td>
+                <td class="text-right">&pound;{{ total_remaining|floatformat:2 }}</td>
+                <td class="text-right">{{ total_pct|floatformat:1 }}%</td>
+                <td></td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

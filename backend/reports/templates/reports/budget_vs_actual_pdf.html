@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Budget vs Actual: {{ site.name }} — {{ year }}</title>
+    <style>
+        @page { size: A4 landscape; margin: 1.5cm; }
+        body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 10pt; color: #1a1a2e; line-height: 1.4; }
+        h1 { font-size: 16pt; color: #166534; margin-bottom: 4pt; }
+        .subtitle { font-size: 10pt; color: #6b7280; margin-bottom: 12pt; }
+        table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+        th { text-align: left; padding: 6pt 8pt; background: #f0fdf4; color: #166534; font-weight: 600; border-bottom: 2pt solid #bbf7d0; }
+        td { padding: 6pt 8pt; border-bottom: 0.5pt solid #e5e7eb; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .total-row td { font-weight: 700; background: #f0fdf4; border-top: 2pt solid #166534; }
+        .badge { display: inline-block; padding: 2pt 8pt; border-radius: 99pt; font-size: 8pt; font-weight: 600; }
+        .badge-ok { background: #dcfce7; color: #166534; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-over { background: #fecaca; color: #991b1b; }
+        .footer { font-size: 8pt; color: #9ca3af; margin-top: 20pt; text-align: center; }
+        .header-logo { font-size: 18pt; font-weight: 700; color: #166534; }
+        .progress-bar { background: #e5e7eb; border-radius: 99pt; height: 8pt; width: 100pt; display: inline-block; overflow: hidden; vertical-align: middle; }
+        .progress-fill { height: 100%; border-radius: 99pt; }
+        .fill-ok { background: #22c55e; }
+        .fill-warning { background: #f59e0b; }
+        .fill-over { background: #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="header-logo">City Centre Dawah</div>
+    <h1>Budget vs Actual Report</h1>
+    <div class="subtitle">{{ site.name }} ({{ site.country }}) — Financial Year {{ year }}</div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th class="text-right">Annual Budget</th>
+                <th class="text-right">Actual Spend</th>
+                <th class="text-right">Remaining</th>
+                <th class="text-center">Progress</th>
+                <th class="text-right">% Used</th>
+                <th class="text-center">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>{{ row.category }}</td>
+                <td class="text-right">&pound;{{ row.annual_amount|floatformat:2 }}</td>
+                <td class="text-right">&pound;{{ row.actual_spend|floatformat:2 }}</td>
+                <td class="text-right">&pound;{{ row.remaining|floatformat:2 }}</td>
+                <td class="text-center">
+                    <div class="progress-bar">
+                        <div class="progress-fill fill-{{ row.status }}" style="width: {% if row.pct_used > 100 %}100{% else %}{{ row.pct_used|floatformat:0 }}{% endif %}%"></div>
+                    </div>
+                </td>
+                <td class="text-right">{{ row.pct_used|floatformat:1 }}%</td>
+                <td class="text-center">
+                    <span class="badge badge-{{ row.status }}">
+                        {% if row.status == "over" %}OVER BUDGET{% elif row.status == "warning" %}CAUTION{% else %}ON TRACK{% endif %}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+            <tr class="total-row">
+                <td>TOTAL</td>
+                <td class="text-right">&pound;{{ total_budget|floatformat:2 }}</td>
+                <td class="text-right">&pound;{{ total_spend|floatformat:2 }}</td>
+                <td class="text-right">&pound;{{ total_remaining|floatformat:2 }}</td>
+                <td></td>
+                <td class="text-right">{{ total_pct|floatformat:1 }}%</td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="footer">
+        Generated {{ generated_at|date:"d M Y" }} — City Centre Dawah Orphanage Portal
+    </div>
+</body>
+</html>
