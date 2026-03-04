@@ -7,6 +7,7 @@ Scalable architecture: 2 droplets, managed PostgreSQL, DO Spaces. Designed for 2
 - DigitalOcean account
 - Domain pointed to your App droplet IP (for Caddy auto-SSL)
 - Twilio account (WhatsApp Business API)
+- (Optional) WeasyPrint system libraries for PDF report generation
 
 ---
 
@@ -36,7 +37,10 @@ Scalable architecture: 2 droplets, managed PostgreSQL, DO Spaces. Designed for 2
 
 1. Create Droplet: Ubuntu 24, 2GB RAM, same region as DB
 2. SSH in, harden: disable password auth, configure firewall (22, 80, 443)
-3. Install: Python 3.11, Caddy, Redis, PostgreSQL client (for psql if needed)
+3. Install: Python 3.11, Caddy, Redis, PostgreSQL client (for psql if needed), WeasyPrint system deps:
+   ```bash
+   apt install libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libffi-dev
+   ```
 4. Clone repo, create venv, install requirements
 5. Create `/opt/orphanage/.env` with production values
 6. Run migrations, seed_data, createsuperuser, collectstatic
@@ -92,8 +96,10 @@ AFRICAS_TALKING_API_KEY=<api-key>
 
 1. Health: `curl https://yourdomain.com/health/` → `{"status":"ok"}`
 2. Admin: https://yourdomain.com/admin/
-3. Webhook: Configure Twilio WhatsApp webhook URL to `https://yourdomain.com/webhooks/whatsapp/`
-4. Send test WhatsApp message; verify expense appears in admin
+3. Reports dashboard: https://yourdomain.com/reports/dashboard/
+4. PDF reports: https://yourdomain.com/reports/monthly-summary/ and https://yourdomain.com/reports/budget-vs-actual/
+5. Webhook: Configure Twilio WhatsApp webhook URL to `https://yourdomain.com/webhooks/whatsapp/`
+6. Send test WhatsApp message; verify expense appears in admin
 
 ---
 

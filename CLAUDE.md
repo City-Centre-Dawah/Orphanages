@@ -16,6 +16,8 @@ Expense management system for City Centre Dawah's orphanages in Uganda, Gambia, 
 - **Messaging:** WhatsApp (Twilio SDK) + Telegram Bot API (direct HTTP)
 - **SMS:** Africa's Talking SDK (confirmation messages)
 - **REST API:** Django REST Framework with token auth
+- **Reports:** Chart.js interactive dashboard + WeasyPrint PDF generation
+- **Admin theme:** django-unfold with CCD brand identity (`#982b2e` maroon)
 - **Config management:** django-environ (reads `.env`)
 - **Package manager:** pip with `requirements.txt`
 
@@ -61,6 +63,13 @@ backend/                    # Django project root (run manage.py from here)
 ├── expenses/               # Financial tracking
 │   ├── models.py           # Budget, Expense, ProjectBudget, ProjectExpense, ExchangeRate
 │   └── admin.py            # Budget vs actual displays, expense filters
+├── reports/                # Reporting & PDF generation
+│   ├── views.py            # Dashboard (Chart.js), monthly summary PDF,
+│   │                       # budget vs actual PDF (WeasyPrint)
+│   ├── urls.py             # /reports/ routes (dashboard, monthly-summary, budget-vs-actual)
+│   └── templates/reports/  # base_report.html, dashboard.html, PDF templates,
+│                           # preview templates, form templates
+├── static/img/             # CCD brand logos (SVG)
 ├── api/                    # REST API (Phase 2 mobile app backend)
 │   ├── views.py            # ViewSets: Site, BudgetCategory, FundingSource,
 │   │                       # ActivityType, Expense, Sync
@@ -95,6 +104,9 @@ backend/                    # Django project root (run manage.py from here)
 | GET | `/api/v1/funding-sources/` | Funding sources |
 | GET | `/api/v1/activity-types/` | Activity types |
 | POST | `/api/v1/sync/` | Offline-first sync endpoint |
+| GET | `/reports/dashboard/` | Interactive Chart.js dashboard (login required) |
+| GET | `/reports/monthly-summary/` | Monthly expense summary (HTML preview or PDF) |
+| GET | `/reports/budget-vs-actual/` | Budget vs actual report (HTML preview or PDF) |
 
 ## Architecture Patterns
 
@@ -115,6 +127,17 @@ Webhook views validate, deduplicate (Redis + DB), and queue Celery tasks. Three-
 
 ### Audit trail
 Django signals (`core/signals.py`) log all model saves to `AuditLog` with user, table, record ID, and action (CREATE/UPDATE).
+
+### Reporting
+Three report views in `reports/views.py`, all behind `@login_required`:
+- **Dashboard** (`/reports/dashboard/`) — Chart.js line/bar/doughnut charts, budget gauges, summary stats, recent expenses. Filterable by site and year.
+- **Monthly Summary** (`/reports/monthly-summary/`) — Expense listing by category for a given site/month. HTML preview or WeasyPrint PDF download (`?format=pdf`).
+- **Budget vs Actual** (`/reports/budget-vs-actual/`) — Annual budget utilisation by category with progress bars and status badges. HTML preview or PDF.
+
+All report templates extend `reports/base_report.html` which uses the CCD maroon brand palette (`#982b2e`).
+
+### Brand identity
+CCD brand assets live in `docs/` (SVG logos, brand book PDF). Static copies for the admin theme are in `backend/static/img/`. The Unfold admin theme uses a maroon palette derived from the brand colour `#982b2e`. The `SITE_LOGO` points to `ccd-logo-red.svg`.
 
 ### Custom User model
 `core.User` extends `AbstractUser` with `organisation`, `site`, `phone`, `role` (admin/site_manager/caretaker/viewer), `telegram_username`, and `telegram_id`. Set via `AUTH_USER_MODEL = "core.User"`.

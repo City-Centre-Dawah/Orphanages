@@ -34,6 +34,8 @@
    - 5.7 [Exchange Rates](#57-exchange-rates)
    - 5.8 [Viewing Message Logs](#58-viewing-message-logs)
    - 5.9 [Audit Trail](#59-audit-trail)
+   - 5.10 [Reports Dashboard](#510-reports-dashboard)
+   - 5.11 [PDF Reports](#511-pdf-reports)
 6. [REST API (Phase 2 Mobile App)](#6-rest-api-phase-2-mobile-app)
 7. [Troubleshooting](#7-troubleshooting)
 8. [Glossary](#8-glossary)
@@ -57,6 +59,8 @@ The system supports:
 - **Multi-currency:** Local amounts (UGX, GMD, IDR) automatically converted to GBP
 - **Budget guardrails:** Automatic warnings when spending approaches or exceeds budget limits
 - **Receipt photos:** Attach photos of receipts alongside expense messages
+- **Reports dashboard:** Interactive charts and budget gauges at `/reports/dashboard/`
+- **PDF reports:** Monthly summary and budget vs actual, downloadable as PDF
 - **Audit trail:** Every action is logged for transparency and accountability
 
 ---
@@ -473,6 +477,62 @@ Every model save in the system is recorded in the audit log:
 3. Each entry shows: timestamp, user, table name, record ID, and action (CREATE/UPDATE)
 
 This provides a tamper-evident record of all system activity.
+
+### 5.10 Reports Dashboard
+
+The interactive reports dashboard provides visual summaries of spending data using charts and gauges.
+
+**Accessing the dashboard:**
+
+1. Go to `/reports/dashboard/` or click **"Reports Dashboard"** in the admin sidebar
+2. Use the **Site** and **Year** dropdowns to filter data
+3. Click **Apply** to update all charts
+
+**Dashboard contents:**
+
+| Section | What it shows |
+|---------|---------------|
+| **Summary cards** | Total spend (GBP), expense count, flagged expenses for the period |
+| **Monthly spending trend** | Line chart showing month-by-month expenditure |
+| **Category breakdown** | Bar chart of spending per budget category |
+| **Channel breakdown** | Doughnut chart showing WhatsApp vs Telegram vs web submissions |
+| **Budget gauges** | Progress bars per category with status badges (OK / Warning / Over) |
+| **Recent expenses** | Table of the 10 most recent expenses with amounts and categories |
+
+<!-- SCREENSHOT: Reports dashboard showing charts and budget gauges -->
+
+> **Tip:** Bookmark `/reports/dashboard/` for quick access to the overview.
+
+### 5.11 PDF Reports
+
+Two PDF reports are available for printing or sharing with stakeholders.
+
+**Monthly Expense Summary:**
+
+1. Go to `/reports/monthly-summary/` or click **"Monthly Summary (PDF)"** in the admin sidebar
+2. Select the **Site**, **Year**, and **Month**
+3. Click **Preview** to see the report in your browser
+4. Click **Download PDF** to generate a printable PDF
+
+The report includes:
+- All expenses for the selected month, grouped by category
+- Category totals (GBP and local currency)
+- Grand total
+
+**Budget vs Actual Report:**
+
+1. Go to `/reports/budget-vs-actual/` or click **"Budget vs Actual (PDF)"** in the admin sidebar
+2. Select the **Site** and **Year**
+3. Click **Preview** to see the report
+4. Click **Download PDF** for a printable version
+
+The report includes:
+- Annual budget per category
+- Actual spend to date
+- Remaining budget
+- Percentage used with colour-coded status (green = OK, amber = 80%+, red = over)
+
+> **Note:** PDF generation requires WeasyPrint to be installed on the server. If PDFs are unavailable, use the HTML preview instead.
 
 ---
 
