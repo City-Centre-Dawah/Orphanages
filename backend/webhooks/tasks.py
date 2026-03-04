@@ -54,12 +54,15 @@ def _resolve_category(org, category_name, reply_fn):
         reply_fn("No categories configured. Contact your admin.")
         return None
 
+    # Strict threshold (0.8) — in a financial system, Fuel must not silently
+    # match to Food, or Medical to Maintenance. Only near-exact typos
+    # (e.g. "Foood" → "Food") should auto-accept.
     matches = difflib.get_close_matches(
-        category_name, active_categories, n=3, cutoff=0.6
+        category_name, active_categories, n=3, cutoff=0.8
     )
 
     if len(matches) == 1:
-        # Single confident fuzzy match — accept it
+        # Single high-confidence fuzzy match — accept it
         category = BudgetCategory.objects.filter(
             organisation=org, name__iexact=matches[0], is_active=True
         ).first()
@@ -67,7 +70,7 @@ def _resolve_category(org, category_name, reply_fn):
         return category
 
     if len(matches) > 1:
-        # Ambiguous — ask user to clarify
+        # Ambiguous even at high threshold — ask user to clarify
         options = ", ".join(matches)
         reply_fn(f"Did you mean: {options}?\nPlease resend with the correct category.")
         return None
