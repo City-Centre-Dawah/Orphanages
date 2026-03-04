@@ -1,0 +1,55 @@
+# CCD Orphanage Portal — Nginx Configuration
+#
+# Copy to /etc/nginx/sites-available/orphanages and symlink to sites-enabled:
+#   sudo cp docs/nginx.conf.example /etc/nginx/sites-available/orphanages
+#   sudo ln -sf /etc/nginx/sites-available/orphanages /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# SSL is managed by Certbot. After initial setup run:
+#   sudo certbot --nginx -d orphanages.ccdawah.org
+
+server {
+    server_name orphanages.ccdawah.org;
+    client_max_body_size 20M;
+
+    # Static files — served directly by nginx (fast, no Python involved)
+    # Requires: python manage.py collectstatic --noinput
+    location /static/ {
+        alias /opt/orphanage/Orphanages/backend/staticfiles/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # Media files (only needed if NOT using DO Spaces)
+    location /media/ {
+        alias /opt/orphanage/Orphanages/backend/media/;
+        expires 7d;
+        access_log off;
+    }
+
+    # Favicon
+    location = /favicon.ico {
+        access_log off;
+        log_not_found off;
+    }
+
+    # Everything else → Gunicorn via Unix socket
+    location / {
+        include proxy_params;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://unix:/opt/orphanage/Orphanages/backend/gunicorn.sock;
+    }
+
+    # Certbot will add SSL directives below this line
+    listen 443 ssl;
+    listen [::]:443 ssl;
+}
+
+# HTTP → HTTPS redirect (Certbot manages this block)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name orphanages.ccdawah.org;
+    return 301 https://$host$request_uri;
+}

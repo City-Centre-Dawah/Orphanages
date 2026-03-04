@@ -12,6 +12,7 @@ pillow>=10.0,<11.0
 psycopg2-binary>=2.9,<3.0
 celery[redis]>=5.3,<6.0
 redis>=5.0,<6.0
+django-redis>=5.4,<6.0
 requests>=2.31,<3.0
 twilio>=8.0,<9.0
 africastalking>=2.0,<3.0
