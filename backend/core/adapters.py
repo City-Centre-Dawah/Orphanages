@@ -1,85 +1,76 @@
 """
-Custom allauth adapter: Google OAuth only works for existing Django users.
+Social signup intercept: when allauth redirects to /accounts/social/signup/,
+this view matches the Google email to an existing Django user, connects the
+social account, logs them in, and redirects to /admin/.
 
-Matches Google email to an existing User. If no user with that email exists,
-the login is rejected. This prevents random Google accounts from signing up.
+No adapter hooks needed — works at the URL level.
 """
 
 import logging
 
-from allauth.core.exceptions import ImmediateHttpResponse
-from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+from allauth.socialaccount.internal.flows.signup import get_pending_signup
+from allauth.socialaccount.models import SocialAccount
 from django.contrib import messages
-from django.contrib.auth import login as auth_login
+from django.contrib.auth import get_user_model, login as auth_login
 from django.shortcuts import redirect
 
 logger = logging.getLogger(__name__)
+User = get_user_model()
 
 
-class ExistingUserOnlySocialAdapter(DefaultSocialAccountAdapter):
-    """Only allow Google login if a Django user with that email already exists."""
+def social_signup_intercept(request):
+    """
+    Replaces allauth's social signup view.
+    Instead of showing a signup form, auto-connect to existing user by email.
+    """
+    sociallogin = get_pending_signup(request)
+    if not sociallogin:
+        messages.error(request, "No pending social login found. Please try again.")
+        return redirect("/admin/login/")
 
-    def pre_social_login(self, request, sociallogin):
-        """Auto-connect Google account to existing user by email match."""
-        logger.warning(">>> ADAPTER pre_social_login called, is_existing=%s", sociallogin.is_existing)
-
-        # If already connected to a user, nothing to do
-        if sociallogin.is_existing:
-            return
-
-        # Get email from Google
-        email = ""
-        if sociallogin.account.extra_data:
-            email = sociallogin.account.extra_data.get("email", "")
-        if not email:
-            # Try from email_addresses list
-            for addr in sociallogin.email_addresses:
+    # Extract email from the social login
+    email = ""
+    if sociallogin.account.extra_data:
+        email = sociallogin.account.extra_data.get("email", "")
+    if not email:
+        for addr in sociallogin.email_addresses:
+            if hasattr(addr, "email"):
                 email = addr.email
                 break
 
-        email = email.lower().strip()
-        logger.warning(">>> ADAPTER email from Google: '%s'", email)
+    email = (email or "").lower().strip()
+    logger.info("Social signup intercept: Google email = %s", email)
 
-        if not email:
-            messages.error(request, "No email returned from Google.")
-            raise ImmediateHttpResponse(redirect("/admin/login/"))
+    if not email:
+        messages.error(request, "No email returned from Google.")
+        return redirect("/admin/login/")
 
-        # Try to find existing user by email
-        from django.contrib.auth import get_user_model
+    # Find existing user
+    try:
+        user = User.objects.get(email__iexact=email)
+    except User.DoesNotExist:
+        messages.error(
+            request,
+            f"No account found for {email}. Ask an admin to create your account first.",
+        )
+        return redirect("/admin/login/")
+    except User.MultipleObjectsReturned:
+        user = User.objects.filter(email__iexact=email).first()
 
-        User = get_user_model()
+    # Link the social account to this user
+    account = sociallogin.account
+    account.user = user
+    account.save()
 
-        try:
-            user = User.objects.get(email__iexact=email)
-        except User.DoesNotExist:
-            logger.warning(">>> ADAPTER no user with email %s", email)
-            messages.error(
-                request,
-                f"No account found for {email}. Ask an admin to create your account first.",
-            )
-            raise ImmediateHttpResponse(redirect("/admin/login/"))
-        except User.MultipleObjectsReturned:
-            user = User.objects.filter(email__iexact=email).first()
+    # Save token if present
+    if sociallogin.token:
+        sociallogin.token.account = account
+        sociallogin.token.save()
 
-        logger.warning(">>> ADAPTER matched user: %s (pk=%s)", user, user.pk)
+    # Clear the pending signup from session
+    request.session.pop("socialaccount_sociallogin", None)
 
-        # Save the social account link
-        sociallogin.user = user
-        sociallogin.account.user = user
-        sociallogin.account.save()
-        if sociallogin.token:
-            sociallogin.token.account = sociallogin.account
-            sociallogin.token.save()
-
-        # Log the user in directly and redirect to admin
-        auth_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-        logger.warning(">>> ADAPTER logged in user, redirecting to /admin/")
-        raise ImmediateHttpResponse(redirect("/admin/"))
-
-    def is_auto_signup_allowed(self, request, sociallogin):
-        """Never allow signup — only existing users via pre_social_login."""
-        return False
-
-    def is_open_for_signup(self, request, sociallogin):
-        """Block the signup form entirely."""
-        return False
+    # Log them in
+    auth_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+    logger.info("Social signup intercept: logged in user %s", user)
+    return redirect("/admin/")
