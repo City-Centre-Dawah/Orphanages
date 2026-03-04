@@ -1,17 +1,91 @@
 """
-Django Admin for expense models with filters, actions, and budget vs actual view.
+Django Admin for expense models with filters, actions, budget vs actual view,
+and CSV/Excel export via django-import-export.
 """
 
 from django.contrib import admin
 from django.db.models import DecimalField, F, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils.html import format_html
+from import_export import fields, resources
+from import_export.admin import ExportMixin
+from unfold.admin import ModelAdmin
 
 from .models import Budget, ExchangeRate, Expense, ProjectBudget, ProjectExpense
 
 
+# ---------------------------------------------------------------------------
+# Import-export resources
+# ---------------------------------------------------------------------------
+
+class ExpenseResource(resources.ModelResource):
+    site_name = fields.Field(column_name="Site")
+    category_name = fields.Field(column_name="Category")
+    created_by_name = fields.Field(column_name="Created By")
+
+    class Meta:
+        model = Expense
+        fields = [
+            "id",
+            "expense_date",
+            "site_name",
+            "category_name",
+            "supplier",
+            "description",
+            "amount",
+            "amount_local",
+            "local_currency",
+            "exchange_rate_used",
+            "payment_method",
+            "status",
+            "channel",
+            "budget_warning",
+            "created_by_name",
+            "created_at",
+            "notes",
+        ]
+        export_order = fields
+
+    def dehydrate_site_name(self, expense):
+        return str(expense.site) if expense.site else ""
+
+    def dehydrate_category_name(self, expense):
+        return str(expense.category) if expense.category else ""
+
+    def dehydrate_created_by_name(self, expense):
+        return str(expense.created_by) if expense.created_by else ""
+
+
+class BudgetResource(resources.ModelResource):
+    site_name = fields.Field(column_name="Site")
+    category_name = fields.Field(column_name="Category")
+
+    class Meta:
+        model = Budget
+        fields = [
+            "id",
+            "site_name",
+            "category_name",
+            "financial_year",
+            "annual_amount",
+            "notes",
+        ]
+        export_order = fields
+
+    def dehydrate_site_name(self, budget):
+        return str(budget.site) if budget.site else ""
+
+    def dehydrate_category_name(self, budget):
+        return str(budget.category) if budget.category else ""
+
+
+# ---------------------------------------------------------------------------
+# Admin classes
+# ---------------------------------------------------------------------------
+
 @admin.register(Budget)
-class BudgetAdmin(admin.ModelAdmin):
+class BudgetAdmin(ExportMixin, ModelAdmin):
+    resource_class = BudgetResource
     list_display = [
         "site",
         "category",
@@ -70,7 +144,8 @@ class BudgetAdmin(admin.ModelAdmin):
 
 
 @admin.register(Expense)
-class ExpenseAdmin(admin.ModelAdmin):
+class ExpenseAdmin(ExportMixin, ModelAdmin):
+    resource_class = ExpenseResource
     list_display = [
         "expense_date",
         "site",
@@ -134,13 +209,13 @@ class ExpenseAdmin(admin.ModelAdmin):
 
 
 @admin.register(ProjectBudget)
-class ProjectBudgetAdmin(admin.ModelAdmin):
+class ProjectBudgetAdmin(ModelAdmin):
     list_display = ["site", "activity_type", "financial_year", "annual_amount"]
     list_filter = ["site", "financial_year", "activity_type"]
 
 
 @admin.register(ProjectExpense)
-class ProjectExpenseAdmin(admin.ModelAdmin):
+class ProjectExpenseAdmin(ModelAdmin):
     list_display = [
         "expense_date",
         "site",
@@ -156,7 +231,7 @@ class ProjectExpenseAdmin(admin.ModelAdmin):
 
 
 @admin.register(ExchangeRate)
-class ExchangeRateAdmin(admin.ModelAdmin):
+class ExchangeRateAdmin(ModelAdmin):
     list_display = ["from_currency", "to_currency", "rate", "effective_date", "source"]
     list_filter = ["from_currency", "effective_date"]
     date_hierarchy = "effective_date"

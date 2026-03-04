@@ -1,12 +1,13 @@
 """Webhook admin."""
 
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 
 from .models import TelegramIncomingMessage, WhatsAppIncomingMessage
 
 
 @admin.register(WhatsAppIncomingMessage)
-class WhatsAppIncomingMessageAdmin(admin.ModelAdmin):
+class WhatsAppIncomingMessageAdmin(ModelAdmin):
     list_display = ["message_sid", "from_number", "body_preview", "processed_at", "created_at"]
     list_filter = ["processed_at"]
     search_fields = ["message_sid", "from_number", "body"]
@@ -28,7 +29,7 @@ class WhatsAppIncomingMessageAdmin(admin.ModelAdmin):
 
 
 @admin.register(TelegramIncomingMessage)
-class TelegramIncomingMessageAdmin(admin.ModelAdmin):
+class TelegramIncomingMessageAdmin(ModelAdmin):
     list_display = ["update_id", "from_username", "chat_id", "body_preview", "processed_at", "created_at"]
     list_filter = ["processed_at"]
     search_fields = ["update_id", "from_username", "body"]

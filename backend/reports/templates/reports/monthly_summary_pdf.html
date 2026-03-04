@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Monthly Summary: {{ site.name }} — {{ month_name }}</title>
+    <style>
+        @page { size: A4; margin: 2cm; }
+        body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11pt; color: #1a1a2e; line-height: 1.4; }
+        h1 { font-size: 16pt; color: #166534; margin-bottom: 4pt; }
+        h2 { font-size: 12pt; color: #166534; margin: 16pt 0 8pt; border-bottom: 2pt solid #bbf7d0; padding-bottom: 4pt; }
+        .subtitle { font-size: 10pt; color: #6b7280; margin-bottom: 12pt; }
+        table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 12pt; }
+        th { text-align: left; padding: 6pt 8pt; background: #f0fdf4; color: #166534; font-weight: 600; border-bottom: 2pt solid #bbf7d0; }
+        td { padding: 5pt 8pt; border-bottom: 0.5pt solid #e5e7eb; }
+        .text-right { text-align: right; }
+        .total-row td { font-weight: 700; background: #f0fdf4; border-top: 2pt solid #166534; }
+        .footer { font-size: 8pt; color: #9ca3af; margin-top: 20pt; text-align: center; }
+        .header-logo { font-size: 18pt; font-weight: 700; color: #166534; }
+    </style>
+</head>
+<body>
+    <div class="header-logo">City Centre Dawah</div>
+    <h1>Monthly Expense Summary</h1>
+    <div class="subtitle">{{ site.name }} ({{ site.country }}) — {{ month_name }}</div>
+
+    <h2>Summary by Category</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th class="text-right">Total (GBP)</th>
+                <th class="text-right">Total ({{ site.default_currency }})</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in category_totals %}
+            <tr>
+                <td>{{ row.category__name }}</td>
+                <td class="text-right">&pound;{{ row.total_gbp|floatformat:2 }}</td>
+                <td class="text-right">{{ row.total_local|floatformat:2|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="total-row">
+                <td>Total</td>
+                <td class="text-right">&pound;{{ grand_total.total_gbp|floatformat:2 }}</td>
+                <td class="text-right">{{ grand_total.total_local|floatformat:2 }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>Expense Detail</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th class="text-right">GBP</th>
+                <th class="text-right">Local</th>
+                <th>Channel</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in expenses %}
+            <tr>
+                <td>{{ e.expense_date|date:"d/m" }}</td>
+                <td>{{ e.category.name }}</td>
+                <td>{{ e.description|truncatewords:6 }}</td>
+                <td class="text-right">&pound;{{ e.amount|floatformat:2 }}</td>
+                <td class="text-right">{{ e.amount_local|floatformat:0|default:"—" }}</td>
+                <td>{{ e.get_channel_display }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" style="text-align:center;">No expenses for this period.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="footer">
+        Generated {{ generated_at|date:"d M Y" }} — City Centre Dawah Orphanage Portal
+    </div>
+</body>
+</html>

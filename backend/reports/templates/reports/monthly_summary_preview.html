@@ -1,0 +1,78 @@
+{% extends "reports/base_report.html" %}
+{% load humanize %}
+{% block title %}Monthly Summary: {{ site.name }} — {{ month_name }}{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <h1 style="font-size:1.5rem;color:#166534;">Monthly Summary: {{ site.name }}</h1>
+    <div>
+        <a href="?site={{ site.id }}&year={{ year }}&month={{ month }}&format=pdf" class="btn btn-primary">Download PDF</a>
+        <a href="/reports/monthly-summary/" class="btn btn-outline" style="margin-left:0.5rem;">Back</a>
+    </div>
+</div>
+
+<div class="card">
+    <h2>{{ month_name }} — {{ site.name }} ({{ site.country }})</h2>
+
+    <h3 style="margin:1rem 0 0.5rem;font-size:0.95rem;color:#374151;">Summary by Category</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th class="text-right">Total (GBP)</th>
+                <th class="text-right">Total (Local)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in category_totals %}
+            <tr>
+                <td>{{ row.category__name }}</td>
+                <td class="text-right">&pound;{{ row.total_gbp|floatformat:2 }}</td>
+                <td class="text-right">{{ row.total_local|floatformat:2|default:"—" }} {{ site.default_currency }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center">No expenses for this period.</td></tr>
+            {% endfor %}
+            {% if category_totals %}
+            <tr class="total-row">
+                <td>Total</td>
+                <td class="text-right">&pound;{{ grand_total.total_gbp|floatformat:2 }}</td>
+                <td class="text-right">{{ grand_total.total_local|floatformat:2 }} {{ site.default_currency }}</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2>Expense Detail</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th class="text-right">Amount (GBP)</th>
+                <th class="text-right">Local</th>
+                <th>Channel</th>
+                <th>By</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in expenses %}
+            <tr>
+                <td>{{ e.expense_date|date:"d M" }}</td>
+                <td>{{ e.category.name }}</td>
+                <td>{{ e.description|truncatewords:8 }}</td>
+                <td class="text-right">&pound;{{ e.amount|floatformat:2 }}</td>
+                <td class="text-right">{{ e.amount_local|floatformat:0|default:"—" }} {{ e.local_currency }}</td>
+                <td>{{ e.get_channel_display }}</td>
+                <td>{{ e.created_by|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center">No expenses.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

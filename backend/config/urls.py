@@ -13,6 +13,7 @@ urlpatterns = [
     path("health/", include("core.urls")),
     path("webhooks/", include("webhooks.urls")),
     path("api/v1/", include("api.urls")),
+    path("reports/", include("reports.urls")),
 ]
 
 if settings.DEBUG:
