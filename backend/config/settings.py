@@ -26,6 +26,8 @@ env = environ.Env(
     TWILIO_ACCOUNT_SID=(str, ""),
     AFRICAS_TALKING_USERNAME=(str, "sandbox"),
     AFRICAS_TALKING_API_KEY=(str, ""),
+    TELEGRAM_BOT_TOKEN=(str, ""),
+    TELEGRAM_WEBHOOK_SECRET=(str, ""),
     # DO Spaces (S3-compatible) — leave empty for local filesystem
     USE_SPACES=(bool, False),
     AWS_ACCESS_KEY_ID=(str, ""),
@@ -214,6 +216,10 @@ CELERY_TIMEZONE = TIME_ZONE
 TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="")
 TWILIO_AUTH_TOKEN = env("TWILIO_AUTH_TOKEN", default="")
 TWILIO_WHATSAPP_WEBHOOK_TOKEN = env("TWILIO_WHATSAPP_WEBHOOK_TOKEN", default="")
+
+# Telegram Bot (expense logging via Telegram)
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
+TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", default="")
 
 # DRF
 REST_FRAMEWORK = {

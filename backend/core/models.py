@@ -37,7 +37,7 @@ class Site(models.Model):
 
 
 class User(AbstractUser):
-    """Extended user with organisation, site, phone (WhatsApp), and role."""
+    """Extended user with organisation, site, phone (WhatsApp), Telegram, and role."""
 
     ROLE_CHOICES = [
         ("admin", "Admin"),
@@ -50,6 +50,8 @@ class User(AbstractUser):
     site = models.ForeignKey(Site, on_delete=models.SET_NULL, null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="caretaker")
+    telegram_username = models.CharField(max_length=100, blank=True, help_text="Telegram @username without @")
+    telegram_id = models.BigIntegerField(null=True, blank=True, unique=True, help_text="Telegram numeric user ID")
 
     def __str__(self):
         return self.get_full_name() or self.username
