@@ -252,10 +252,9 @@ LOGIN_REDIRECT_URL = "/admin/"
 ACCOUNT_LOGIN_METHODS = {"username", "email"}
 ACCOUNT_EMAIL_VERIFICATION = "none"  # Admin users are trusted
 ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
-SOCIALACCOUNT_AUTO_SIGNUP = False  # Don't create new users via Google — only existing users
+SOCIALACCOUNT_AUTO_SIGNUP = True  # Adapter controls actual signup logic
 SOCIALACCOUNT_LOGIN_ON_GET = True  # Skip "Continue to Google?" interstitial
-SOCIALACCOUNT_EMAIL_AUTHENTICATION = True  # Auto-match Google email to existing Django user
-SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True  # Auto-link the social account
+SOCIALACCOUNT_ADAPTER = "core.adapters.ExistingUserOnlySocialAdapter"
 
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
