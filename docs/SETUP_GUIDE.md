@@ -498,6 +498,16 @@ AWS_S3_ENDPOINT_URL=https://lon1.digitaloceanspaces.com
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_WHATSAPP_WEBHOOK_TOKEN=
+
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
+
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_SSO_PROJECT_ID=
+
+AFRICAS_TALKING_USERNAME=sandbox
+AFRICAS_TALKING_API_KEY=
 ```
 
 **Save the file and close your editor.**
@@ -623,6 +633,7 @@ The migrations created these 13 tables in the database:
 | `expenses_projectexpense` | expenses | Project-specific expenses |
 | `expenses_exchangerate` | expenses | Currency conversion rates |
 | `webhooks_whatsappincomingmessage` | webhooks | Raw WhatsApp messages for audit |
+| `webhooks_telegramincomingmessage` | webhooks | Raw Telegram messages for audit |
 
 Plus Django's built-in tables for admin, auth, sessions, and content types.
 
@@ -830,6 +841,7 @@ After logging in, you should see the **Django administration** page with these s
 
 **WEBHOOKS**
 - Whats app incoming messages
+- Telegram incoming messages
 
 ---
 
@@ -926,9 +938,9 @@ This is the budget vs actual tracking — the core feature that replaces the Exc
 
 ---
 
-## PHASE 6 — Start Celery and Test the Full WhatsApp Pipeline
+## PHASE 6 — Start Celery and Test the Full WhatsApp/Telegram Pipeline
 
-**Goal:** Start the Celery background worker and understand how the WhatsApp webhook pipeline works. This is optional for admin-only use but required if caretakers will submit expenses via WhatsApp.
+**Goal:** Start the Celery background worker and understand how the messaging webhook pipeline works. This is optional for admin-only use but required if caretakers will submit expenses via WhatsApp or Telegram.
 
 ---
 
@@ -987,13 +999,14 @@ You should see output like:
 
 [tasks]
   . webhooks.tasks.process_whatsapp_message
+  . webhooks.tasks.process_telegram_message
 
 [... ready.]
 ```
 
 Key things to verify:
 - **transport** shows `redis://localhost:6379/1` — Celery is connected to Redis
-- **tasks** list shows `webhooks.tasks.process_whatsapp_message` — the WhatsApp task is registered
+- **tasks** list shows both `process_whatsapp_message` and `process_telegram_message` — both messaging tasks are registered
 - The last line says something about being ready
 
 **Leave this terminal running.** Celery must stay open to process messages.
@@ -1172,7 +1185,7 @@ celery -A config worker -l info
 
 ### PHASE 6 — CHECKPOINT
 
-1. Celery worker is running and shows the `process_whatsapp_message` task registered
+1. Celery worker is running and shows both `process_whatsapp_message` and `process_telegram_message` tasks registered
 
 2. You created a test user with a phone number, linked to a site
 
@@ -1203,7 +1216,7 @@ Your Computer
 └── Browser: Django Admin dashboard
 
 Data Flow:
-WhatsApp Message → Webhook → Redis (dedup) → Celery → Currency Conversion → Expense Record
+WhatsApp/Telegram Message → Webhook → Redis (dedup) → Celery → Currency Conversion → Expense Record
 Admin → Reviews expense → Mark as reviewed/queried
 Budget → Annotated with actual spend from expenses → Shows remaining + % used
 ```
@@ -1217,7 +1230,7 @@ Budget → Annotated with actual spend from expenses → Shows remaining + % use
 | 3 | Started PostgreSQL + Redis in Docker, created your `.env` config file |
 | 4 | Created database tables, seeded initial data, created your admin account |
 | 5 | Started Django, verified admin dashboard, created test data, verified budget vs actual |
-| 6 | Started Celery, simulated WhatsApp message, verified end-to-end expense creation |
+| 6 | Started Celery, simulated WhatsApp/Telegram message, verified end-to-end expense creation |
 
 ---
 

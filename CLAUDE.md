@@ -11,13 +11,16 @@ Expense management system for City Centre Dawah's orphanages in Uganda, Gambia, 
 - **Backend:** Django 5.x, Python 3.11+
 - **Database:** PostgreSQL 16 (Docker locally, DigitalOcean Managed in prod)
 - **Task queue:** Celery 5.3+ with Redis broker
-- **Cache/idempotency:** Redis 7
+- **Cache/idempotency:** Redis 7 (also used for Django session/cache via django-redis)
 - **Media storage:** DigitalOcean Spaces (S3-compatible) in prod, local filesystem in dev
 - **Messaging:** WhatsApp (Twilio SDK) + Telegram Bot API (direct HTTP)
 - **SMS:** Africa's Talking SDK (confirmation messages)
 - **REST API:** Django REST Framework with token auth
 - **Reports:** Chart.js interactive dashboard + WeasyPrint PDF generation
 - **Admin theme:** django-unfold with CCD brand identity (`#982b2e` maroon)
+- **Admin SSO:** django-google-sso (Google OAuth2, restricted to `@ccdawah.org`)
+- **Static files:** WhiteNoise (compressed static serving in production)
+- **Import/export:** django-import-export (bulk data operations in admin)
 - **Config management:** django-environ (reads `.env`)
 - **Package manager:** pip with `requirements.txt`
 
@@ -95,6 +98,7 @@ backend/                    # Django project root (run manage.py from here)
 |--------|------|---------|
 | GET | `/admin/` | Django Admin dashboard |
 | GET | `/health/` | Health check (DB connectivity) |
+| GET | `/google_sso/callback/` | Google OAuth2 callback (django-google-sso) |
 | POST | `/webhooks/whatsapp/` | Twilio WhatsApp webhook |
 | POST | `/webhooks/telegram/` | Telegram Bot webhook |
 | POST | `/api/v1/auth/token/` | Obtain auth token |
@@ -117,10 +121,13 @@ Organisation → Site → User hierarchy. All queries filter by organisation/sit
 Every expense stores both `amount` (GBP, reporting currency) and `amount_local` (UGX/GMD/IDR). The `exchange_rate_used` is frozen at time of entry from the `ExchangeRate` table.
 
 ### Dual-channel messaging (WhatsApp + Telegram)
-Both webhook endpoints return 200 immediately and queue a Celery task. The shared `_parse_and_create_expense()` function handles parsing, category resolution (with fuzzy matching), currency conversion, receipt download, and expense creation. Channel-specific tasks handle message storage and reply routing.
+Both webhook endpoints (`/webhooks/whatsapp/` and `/webhooks/telegram/`) return 200 immediately and queue a Celery task. The shared `_parse_and_create_expense()` function handles parsing, category resolution (with fuzzy matching at 0.8 cutoff), currency conversion, receipt download, and expense creation. Channel-specific tasks (`process_whatsapp_message`, `process_telegram_message`) handle message storage, user lookup, and reply routing via their respective APIs.
 
 ### Async webhook processing
-Webhook views validate, deduplicate (Redis + DB), and queue Celery tasks. Three-layer idempotency: Redis (fast, 24h TTL), DB check in view (durable), DB check in task (durable). Rate-limited at 60 req/min per IP.
+Webhook views validate, deduplicate (Redis + DB), and queue Celery tasks. Two-layer idempotency: Redis (fast, 24h TTL) and DB check in view (durable). Rate-limited at 60 req/min per IP via `django-ratelimit`.
+
+### Google OAuth SSO
+Admin login supports Google OAuth2 via `django-google-sso`. Restricted to `@ccdawah.org` domain. Configured with `GOOGLE_SSO_AUTO_CREATE_USERS = False` so only pre-existing Django users can log in. Callback URL: `/google_sso/callback/`.
 
 ### Offline-first sync
 `api/views.py` provides a `SyncViewSet` that accepts queued changes from the mobile app. `SyncQueue` model stores pending inserts/updates for conflict resolution.
@@ -165,13 +172,19 @@ All config is loaded from `.env` at the repo root (not `backend/`). See `.env.ex
 |----------|----------|---------|
 | `SECRET_KEY` | Yes | Django secret key |
 | `DEBUG` | No (default: False) | Debug mode |
+| `ALLOWED_HOSTS` | For prod | Comma-separated allowed hostnames |
 | `DATABASE_URL` | No (default: local) | PostgreSQL connection string |
-| `REDIS_URL` | No (default: localhost) | Redis for idempotency cache |
+| `REDIS_URL` | No (default: localhost) | Redis for cache, sessions, and idempotency |
 | `CELERY_BROKER_URL` | No (default: localhost) | Redis for Celery broker |
 | `TWILIO_ACCOUNT_SID` | For WhatsApp | Twilio account identifier |
 | `TWILIO_AUTH_TOKEN` | For WhatsApp | Twilio signature validation (skipped if empty in dev) |
+| `TWILIO_WHATSAPP_WEBHOOK_TOKEN` | For WhatsApp | Custom webhook validation token |
 | `TELEGRAM_BOT_TOKEN` | For Telegram | Bot token from @BotFather |
 | `TELEGRAM_WEBHOOK_SECRET` | For Telegram | Secret token for webhook validation |
+| `GOOGLE_OAUTH_CLIENT_ID` | For Google SSO | Google Cloud OAuth2 client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | For Google SSO | Google Cloud OAuth2 client secret |
+| `GOOGLE_SSO_PROJECT_ID` | For Google SSO | Google Cloud project ID |
+| `AFRICAS_TALKING_USERNAME` | For SMS | Africa's Talking username (default: `sandbox`) |
 | `AFRICAS_TALKING_API_KEY` | For SMS | Africa's Talking API key |
 | `USE_SPACES` | For prod media | Enable DigitalOcean Spaces storage |
 
@@ -180,7 +193,7 @@ All config is loaded from `.env` at the repo root (not `backend/`). See `.env.ex
 - **PostgreSQL runs on port 5433** (not 5432) to avoid conflicts with local Postgres installs.
 - **`.env` lives at repo root**, one level above `backend/`. `settings.py` reads `ROOT_DIR / ".env"`.
 - **Message format:** `"<Category> <Amount> [description]"` (e.g., `"Food 50000 rice Kalerwe"`). Same format for both WhatsApp and Telegram. Parsed in `webhooks/tasks.py`.
-- **Fuzzy category matching:** If exact match fails, uses `difflib.get_close_matches()` to suggest corrections.
+- **Fuzzy category matching:** If exact match fails, uses `difflib.get_close_matches()` with cutoff=0.8 (strict for financial accuracy) to suggest corrections.
 - **Migrations:** Per-app migration files. When adding models or fields, run `makemigrations` then `migrate`.
 - **Linting:** `ruff` and `black` are in `requirements.txt`. No CI enforcement yet.
 
@@ -205,16 +218,19 @@ These are areas where the codebase is incomplete or needs attention:
 1. **No CI/CD** — No GitHub Actions. Deployment is manual via SSH (see `docs/DEPLOYMENT.md`).
 2. **SyncQueue unused** — Model exists for Phase 2 offline-first mobile sync, not wired up yet.
 3. **No ASGI** — Uses WSGI (Gunicorn). If WebSocket support is needed later, switch to ASGI.
-4. **Limited test coverage** — Basic tests exist in `core/tests.py`, `webhooks/tests.py`, `api/tests.py`. No integration tests with real messaging providers.
+4. **Limited test coverage** — Tests exist in `core/tests.py`, `expenses/tests.py`, `webhooks/tests.py`, and `api/tests.py`, but there are no integration tests with real messaging providers (Twilio, Telegram).
 5. **No CI linting** — `ruff` and `black` in requirements but not enforced via CI.
+6. **No Celery task-level idempotency** — Idempotency is enforced at Redis and DB-in-view layers, but not at the Celery task entry point. If a task is manually retried (e.g. via Flower), duplicate expenses could be created.
 
 ## Production Architecture
 
 Two-droplet setup with managed services (~$53-65/mo):
 
-- **App Droplet (2GB):** Caddy + Gunicorn + Redis → runs Django
-- **Celery Droplet (1GB):** Celery worker only → background processing
+- **App Droplet (2GB):** Nginx + Gunicorn (unix socket) + Redis → runs Django with WhiteNoise static serving
+- **Celery Droplet (1GB):** Celery worker only → background processing (WhatsApp + Telegram message parsing)
 - **Managed PostgreSQL (1GB):** Daily backups, auto-patching
 - **DO Spaces:** Receipt photo storage, unlimited growth
+
+Services managed via systemd: `gunicorn.service` (app), Celery worker (background). SSL via Certbot/Let's Encrypt.
 
 Deployment docs: `docs/DEPLOYMENT.md`

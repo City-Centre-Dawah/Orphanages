@@ -1,7 +1,7 @@
 # WhatsApp Implementation Plan
 
 **Date:** 2026-03-04
-**Status:** Planning
+**Status:** Partially Implemented (see workstream statuses below)
 **Author:** Architecture Review
 **Scope:** Hardening existing webhook code + WhatsApp provider selection + production activation
 
@@ -173,7 +173,7 @@ $49/month minimum makes no sense for 150 conversations when Cloud API is free.
 
 These are the code changes to harden the existing webhook pipeline before or alongside going live.
 
-### Workstream 1: CLAUDE.md Alignment
+### Workstream 1: CLAUDE.md Alignment ✅ DONE
 
 **Problem:** CLAUDE.md contains 6 false claims about missing features that actually exist.
 
@@ -193,9 +193,11 @@ These are the code changes to harden the existing webhook pipeline before or alo
 
 ---
 
-### Workstream 2: Fuzzy Category Matching
+### Workstream 2: Fuzzy Category Matching ✅ DONE
 
 **Problem:** Category lookup is exact case-insensitive only. "Fod" fails. Caretakers typing on phones will make typos.
+
+> **Implementation note:** Code uses `cutoff=0.8` (stricter than the 0.6 specified below). This is intentional — financial systems benefit from stricter matching to avoid accidental miscategorisation. The higher threshold means caretakers will get more "unrecognised" errors for distant typos, but categories will never be wrongly matched.
 
 **Changes to `webhooks/tasks.py`:**
 
@@ -215,7 +217,7 @@ After the existing `BudgetCategory.objects.filter(name__iexact=category_name)` f
 
 ---
 
-### Workstream 3: Improved Error Feedback & Disambiguation
+### Workstream 3: Improved Error Feedback & Disambiguation ✅ DONE
 
 **Problem:** Error messages are terse. No examples. No category list. No disambiguation.
 
@@ -242,9 +244,11 @@ Also:
 
 ---
 
-### Workstream 4: Harden Idempotency (Belt + Suspenders)
+### Workstream 4: Harden Idempotency (Belt + Suspenders) ⚠️ PARTIALLY DONE
 
 **Problem:** Idempotency relies solely on Redis. If Redis restarts/flushes, duplicates are possible.
+
+> **Implementation note:** Layers 1 (Redis) and 2 (DB check in view) are implemented. Layer 3 (DB check in task) is **not yet implemented** — if a Celery task is manually re-delivered (e.g. via Flower), duplicate expenses could be created. This is a known gap documented in CLAUDE.md.
 
 **Changes:**
 
@@ -277,7 +281,7 @@ if not created and msg.processed_at is not None:
 
 ---
 
-### Workstream 5: Fix Expense Field Population
+### Workstream 5: Fix Expense Field Population ✅ DONE
 
 **Problem:** `supplier` field is populated with the description text. `description` is also set but `supplier` should not contain the description.
 
@@ -295,7 +299,7 @@ description=description[:500] if description else f"WhatsApp expense: {category_
 
 ---
 
-### Workstream 6: README.md Alignment
+### Workstream 6: README.md Alignment ✅ DONE
 
 **Problem:** README may contain stale information matching CLAUDE.md's false claims.
 
@@ -309,84 +313,28 @@ description=description[:500] if description else f"WhatsApp expense: {category_
 
 ---
 
-### Workstream 7: Google OAuth2 Login for Django Admin
+### Workstream 7: Google OAuth2 Login for Django Admin ✅ DONE (different approach)
 
 **Problem:** Admin login is username/password only. Need Google SSO.
 
-**Step 1 — Install dependency:**
-Add to `requirements.txt`:
-```
-django-allauth[socialaccount]>=65.0,<66.0
-```
+> **Implementation note:** This was implemented using `django-google-sso` instead of `django-allauth` as originally planned. `django-google-sso` is a lighter-weight package that integrates directly with Django's admin login page without requiring the full allauth ecosystem.
 
-**Step 2 — Settings (`config/settings.py`):**
-Add to `INSTALLED_APPS`:
-```python
-"django.contrib.sites",
-"allauth",
-"allauth.account",
-"allauth.socialaccount",
-"allauth.socialaccount.providers.google",
-```
+**What was actually implemented:**
 
-Add settings:
-```python
-SITE_ID = 1
+1. **Package:** `django-google-sso` (not `django-allauth`)
+2. **Settings:**
+   - `GOOGLE_SSO_CLIENT_ID`, `GOOGLE_SSO_CLIENT_SECRET`, `GOOGLE_SSO_PROJECT_ID` from env vars
+   - `GOOGLE_SSO_ALLOWABLE_DOMAINS = ["ccdawah.org"]` — restricts to CCD email addresses
+   - `GOOGLE_SSO_AUTO_CREATE_USERS = False` — only existing Django users can log in via Google
+3. **URL:** `/google_sso/callback/` (registered in `config/urls.py`)
+4. **Env vars:** `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_SSO_PROJECT_ID` (all in `.env.example`)
 
-AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",
-    "allauth.account.auth_backends.AuthenticationBackend",
-]
+**Setup requirements (Google Cloud Console):**
+1. Create OAuth2 credentials in Google Cloud Console
+2. Set authorized redirect URI to `https://orphanages.ccdawah.org/google_sso/callback/`
+3. Add client ID, secret, and project ID to `.env`
 
-ACCOUNT_AUTHENTICATION_METHOD = "email"
-ACCOUNT_EMAIL_REQUIRED = True
-SOCIALACCOUNT_AUTO_SIGNUP = True
-LOGIN_REDIRECT_URL = "/admin/"
-SOCIALACCOUNT_LOGIN_ON_GET = True
-
-SOCIALACCOUNT_PROVIDERS = {
-    "google": {
-        "SCOPE": ["profile", "email"],
-        "AUTH_PARAMS": {"access_type": "online"},
-        "APP": {
-            "client_id": env("GOOGLE_OAUTH_CLIENT_ID", default=""),
-            "secret": env("GOOGLE_OAUTH_CLIENT_SECRET", default=""),
-        },
-    }
-}
-```
-
-Add to `MIDDLEWARE` (after `AuthenticationMiddleware`):
-```python
-"allauth.account.middleware.AccountMiddleware",
-```
-
-**Step 3 — URLs (`config/urls.py`):**
-```python
-path("accounts/", include("allauth.urls")),
-```
-
-**Step 4 — Custom Admin Login Template:**
-Create `backend/templates/admin/login.html` that extends the default Django admin login and adds a "Sign in with Google" button.
-
-**Step 5 — Migrations:**
-```bash
-python manage.py migrate
-```
-
-**Step 6 — Environment variables (add to `.env.example`):**
-```
-GOOGLE_OAUTH_CLIENT_ID=
-GOOGLE_OAUTH_CLIENT_SECRET=
-```
-
-**Step 7 — Runtime configuration (manual, in Django Admin):**
-1. Go to Admin → Sites → Update domain to `orphanages.ccdawah.org`
-2. Go to Admin → Social Applications → Add
-3. Provider: Google, Client ID + Secret from Google Cloud Console
-4. Assign to site
-
-**Files:** `requirements.txt`, `config/settings.py`, `config/urls.py`, `templates/admin/login.html` (new), `.env.example`
+**Files modified:** `requirements.txt`, `config/settings.py`, `config/urls.py`, `.env.example`
 
 ---
 
@@ -616,24 +564,24 @@ For each caretaker at each site:
 ## Part 5: Execution Sequence
 
 ```
-Phase A — Immediate (code hardening, no external dependencies):
-  Workstream 1: CLAUDE.md alignment
-  Workstream 2: Fuzzy category matching
-  Workstream 3: Improved error feedback
-  Workstream 4: Harden idempotency
-  Workstream 5: Fix expense field population
-  Workstream 6: README.md alignment
+Phase A — Immediate (code hardening, no external dependencies):  ✅ COMPLETE
+  Workstream 1: CLAUDE.md alignment                              ✅ Done
+  Workstream 2: Fuzzy category matching                          ✅ Done (cutoff=0.8)
+  Workstream 3: Improved error feedback                          ✅ Done
+  Workstream 4: Harden idempotency                               ⚠️ Layers 1+2 done, Layer 3 pending
+  Workstream 5: Fix expense field population                     ✅ Done
+  Workstream 6: README.md alignment                              ✅ Done
 
-Phase B — Parallel with Phase A (requires Google Cloud Console access):
-  Workstream 7: Google OAuth2 login
+Phase B — Parallel with Phase A (requires Google Cloud Console access):  ✅ COMPLETE
+  Workstream 7: Google OAuth2 login (via django-google-sso)      ✅ Done
 
-Phase C — After hardening (requires Twilio account):
+Phase C — After hardening (requires Twilio account):             🔲 NOT STARTED
   Twilio setup steps 1-13 (testing with sandbox)
 
-Phase D — When ready for real caretakers:
+Phase D — When ready for real caretakers:                        🔲 NOT STARTED
   Twilio steps 14-15 (production number + caretaker registration)
 
-Phase E — Future optimisation (optional):
+Phase E — Future optimisation (optional):                        🔲 NOT STARTED
   Migrate from Twilio to Meta Cloud API (saves $1.50/month, free forever)
 ```
 

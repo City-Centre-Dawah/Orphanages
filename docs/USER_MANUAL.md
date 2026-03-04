@@ -260,9 +260,9 @@ Receipt: none
 
 ### 4.1 Logging In
 
-1. Open your browser and go to the system URL provided by your admin (e.g. `https://portal.ccd.org.uk/admin/`)
+1. Open your browser and go to the system URL provided by your admin (e.g. `https://orphanages.ccdawah.org/admin/`)
 2. Log in with your username and password
-3. Alternatively, click **"Sign in with Google"** if your admin has set up Google login
+3. Alternatively, click **"Sign in with Google"** if your admin has set up Google OAuth. This is available for `@ccdawah.org` email accounts only. Note: your Django user account must already exist — Google SSO does not auto-create users.
 
 <!-- SCREENSHOT: Admin login page with Google OAuth button -->
 
