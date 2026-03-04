@@ -51,18 +51,27 @@ def telegram_webhook(request):
         logger.warning("Telegram webhook: missing update_id")
         return HttpResponse("Bad Request", status=400)
 
-    # Idempotency check via Redis
+    # Idempotency check — Layer 1: Redis (fast, volatile, 24h TTL)
     try:
         import redis
 
         r = redis.from_url(settings.REDIS_URL)
         key = f"webhook:telegram:{update_id}"
         if r.exists(key):
-            logger.info("Telegram webhook: duplicate update_id %s, returning 200", update_id)
+            logger.info("Telegram webhook: duplicate update_id %s (Redis), returning 200", update_id)
             return HttpResponse(status=200)
         r.setex(key, 86400, "1")  # 24h TTL
     except Exception as e:
         logger.warning("Redis idempotency check failed: %s", e)
+
+    # Idempotency check — Layer 2: DB (durable, survives Redis flush)
+    from webhooks.models import TelegramIncomingMessage
+
+    if TelegramIncomingMessage.objects.filter(
+        update_id=update_id, processed_at__isnull=False
+    ).exists():
+        logger.info("Telegram webhook: duplicate update_id %s (DB), returning 200", update_id)
+        return HttpResponse(status=200)
 
     # Extract message data from the Update object
     message = payload.get("message", {})

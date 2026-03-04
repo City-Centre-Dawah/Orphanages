@@ -1,14 +1,15 @@
 """
 Celery tasks for webhook processing.
 
-Parse incoming message (e.g. "Food 50000 rice Kalerwe"), resolve category,
-convert currency, create Expense, fetch receipt photo.
+Parse incoming message (e.g. "Food 50000 rice Kalerwe"), resolve category
+(with fuzzy matching), convert currency, create Expense, fetch receipt photo.
 Supports WhatsApp (Twilio) and Telegram Bot API channels.
 """
 
+import difflib
 import logging
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from celery import shared_task
 
@@ -18,10 +19,67 @@ from webhooks.telegram_reply import get_telegram_file_url, send_telegram_reply
 
 logger = logging.getLogger(__name__)
 
+USAGE_HELP = (
+    "Send expenses as:\n"
+    "Category Amount [description]\n\n"
+    "Example: Food 50000 rice Kalerwe"
+)
+
 
 # ---------------------------------------------------------------------------
 # Shared expense-creation logic (channel-agnostic)
 # ---------------------------------------------------------------------------
+
+def _resolve_category(org, category_name, reply_fn):
+    """
+    Resolve a budget category by name with fuzzy matching fallback.
+
+    Returns BudgetCategory or None (with reply sent on failure).
+    """
+    from core.models import BudgetCategory
+
+    # Exact match first (case-insensitive)
+    category = BudgetCategory.objects.filter(
+        organisation=org, name__iexact=category_name, is_active=True
+    ).first()
+    if category:
+        return category
+
+    # Fuzzy match
+    active_categories = list(
+        BudgetCategory.objects.filter(organisation=org, is_active=True)
+        .values_list("name", flat=True)
+    )
+    if not active_categories:
+        reply_fn("No categories configured. Contact your admin.")
+        return None
+
+    matches = difflib.get_close_matches(
+        category_name, active_categories, n=3, cutoff=0.6
+    )
+
+    if len(matches) == 1:
+        # Single confident fuzzy match — accept it
+        category = BudgetCategory.objects.filter(
+            organisation=org, name__iexact=matches[0], is_active=True
+        ).first()
+        logger.info("Fuzzy matched '%s' to '%s'", category_name, matches[0])
+        return category
+
+    if len(matches) > 1:
+        # Ambiguous — ask user to clarify
+        options = ", ".join(matches)
+        reply_fn(f"Did you mean: {options}?\nPlease resend with the correct category.")
+        return None
+
+    # No match at all — show full list
+    category_list = ", ".join(sorted(active_categories))
+    reply_fn(
+        f"Category '{category_name}' not recognised.\n"
+        f"Valid categories: {category_list}"
+    )
+    return None
+
 
 def _parse_and_create_expense(body, from_identifier, media_url, channel, message_ref, reply_fn):
     """
@@ -29,11 +87,11 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
 
     Args:
         body: Message text, e.g. "Food 50000 rice Kalerwe"
-        from_identifier: Phone number (WhatsApp) or username/chat_id (Telegram)
+        from_identifier: Phone number used to look up the User
         media_url: Downloadable receipt photo URL (already resolved)
         channel: "whatsapp" or "telegram"
         message_ref: Unique message ID for idempotency (MessageSid / update_id)
-        reply_fn: Callable(str) to send error replies back to user
+        reply_fn: Callable(str) to send error/success replies back to user
 
     Returns:
         Created Expense instance, or None on validation failure.
@@ -41,59 +99,63 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
     import requests as http_requests
     from django.core.files.base import ContentFile
 
-    from core.models import BudgetCategory, User
+    from core.models import User
     from expenses.models import ExchangeRate, Expense
 
+    # --- Validate message body ---
     if not body or not body.strip():
         logger.warning("Empty message body for %s", message_ref)
-        reply_fn("Please send: Category Amount [description]. Example: Food 50000 rice")
+        reply_fn(USAGE_HELP)
         return None
 
     parts = body.strip().split()
     if len(parts) < 2:
         logger.warning("Message too short for expense: %s", body[:50])
-        reply_fn("Format: Category Amount [description]. Example: Food 50000 rice")
+        reply_fn(USAGE_HELP)
         return None
 
     category_name = parts[0]
     try:
         amount_local = Decimal(parts[1].replace(",", ""))
-    except (ValueError, IndexError):
+    except (ValueError, InvalidOperation):
         logger.warning("Invalid amount in message: %s", body[:50])
-        reply_fn("Invalid amount. Use numbers only. Example: Food 50000 rice")
+        reply_fn(
+            f"Amount must be a number.\n"
+            f"Example: Food 50000 rice Kalerwe\n"
+            f"You sent: {body[:100]}"
+        )
         return None
 
     description = " ".join(parts[2:]) if len(parts) > 2 else ""
 
-    # Resolve user by phone number
+    # --- Resolve user ---
     user = User.objects.filter(phone=from_identifier).first()
     if not user:
         logger.warning("No user found for identifier %s", from_identifier)
-        reply_fn("Your number is not registered. Contact your admin.")
+        reply_fn(
+            f"Your number ({from_identifier[:6]}...) is not registered.\n"
+            f"Contact your site manager to register."
+        )
         return None
 
     site = user.site
     if not site:
         logger.warning("User %s has no site assignment", user.username)
-        reply_fn("No site assigned to your account. Contact your admin.")
+        reply_fn("Your account has no site assigned.\nContact your administrator.")
         return None
 
     org = user.organisation or (site.organisation if site else None)
     if not org:
         logger.warning("No organisation for user/site")
-        reply_fn("Account configuration error. Contact your admin.")
+        reply_fn("Account configuration error.\nContact your administrator.")
         return None
 
-    # Resolve category (case-insensitive)
-    category = BudgetCategory.objects.filter(
-        organisation=org, name__iexact=category_name, is_active=True
-    ).first()
+    # --- Resolve category (with fuzzy matching) ---
+    category = _resolve_category(org, category_name, reply_fn)
     if not category:
-        logger.warning("Category not found: %s", category_name)
-        reply_fn(f"Category '{category_name}' not found. Check spelling.")
         return None
 
-    # Currency conversion
+    # --- Currency conversion ---
     local_currency = site.default_currency if site.default_currency != "GBP" else "GBP"
     amount_gbp = amount_local
     exchange_rate_used = None
@@ -114,7 +176,7 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
         else:
             logger.warning("No exchange rate for %s, using 1:1", local_currency)
 
-    # Fetch receipt photo if present
+    # --- Fetch receipt photo ---
     receipt_file = None
     if media_url:
         try:
@@ -125,14 +187,14 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
         except Exception as e:
             logger.warning("Failed to fetch media: %s", e)
 
-    # Create expense
+    # --- Create expense (WS5: supplier = channel identifier, not description) ---
     expense = Expense.objects.create(
         site=site,
         category=category,
         funding_source=None,
         expense_date=date.today(),
-        supplier=description[:200] or channel.title(),
-        description=description[:500],
+        supplier=f"{channel.title()} Entry",
+        description=description[:500] if description else f"{channel.title()} expense: {category.name}",
         payment_method="cash",
         amount=amount_gbp,
         amount_local=amount_local,
@@ -150,8 +212,21 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
     return expense
 
 
+def _format_success_message(expense):
+    """Build a consistent success confirmation message."""
+    currency = expense.local_currency or "GBP"
+    receipt_status = "attached" if expense.receipt_photo else "none"
+    msg = (
+        f"Logged: {expense.category.name} {expense.amount_local} {currency}"
+    )
+    if currency != "GBP":
+        msg += f" ({expense.amount:.2f} GBP)"
+    msg += f"\nRef: {expense.id}\nReceipt: {receipt_status}"
+    return msg
+
+
 # ---------------------------------------------------------------------------
-# WhatsApp task (unchanged interface — Twilio webhook calls this)
+# WhatsApp task
 # ---------------------------------------------------------------------------
 
 @shared_task(bind=True, max_retries=3)
@@ -184,11 +259,11 @@ def process_whatsapp_message(
         },
     )
 
-    if msg.processed_at:
+    if not created and msg.processed_at is not None:
         logger.info("WhatsApp %s already processed, skipping", message_sid)
         return
 
-    def _reply_error(text):
+    def _reply(text):
         send_whatsapp_reply(to_number, from_number, text)
 
     expense = _parse_and_create_expense(
@@ -197,24 +272,26 @@ def process_whatsapp_message(
         media_url=media_url,
         channel="whatsapp",
         message_ref=message_sid,
-        reply_fn=_reply_error,
+        reply_fn=_reply,
     )
 
     if expense:
         msg.processed_at = expense.created_at
         msg.save(update_fields=["processed_at"])
 
-        # SMS confirmation via Africa's Talking
+        # Success: WhatsApp reply (primary) + SMS (fallback)
+        confirmation = _format_success_message(expense)
+        _reply(confirmation)
+
         from core.models import User
 
         user = User.objects.filter(phone=from_number).first()
         if user and user.phone:
-            sms_msg = f"Expense logged: {expense.category.name} {expense.amount_local} {expense.local_currency or 'GBP'}. Ref: {expense.id}"
-            send_sms(user.phone, sms_msg)
+            send_sms(user.phone, confirmation)
 
 
 # ---------------------------------------------------------------------------
-# Telegram task (new — Telegram webhook calls this)
+# Telegram task
 # ---------------------------------------------------------------------------
 
 @shared_task(bind=True, max_retries=3)
@@ -249,7 +326,7 @@ def process_telegram_message(
         },
     )
 
-    if msg.processed_at:
+    if not created and msg.processed_at is not None:
         logger.info("Telegram update %s already processed, skipping", update_id)
         return
 
@@ -258,9 +335,8 @@ def process_telegram_message(
         send_telegram_reply(
             chat_id,
             "Welcome to CCD Expense Bot!\n\n"
-            "Send expenses as: Category Amount [description]\n"
-            "Example: Food 50000 rice Kalerwe\n\n"
-            "Your phone number must be registered with your admin.",
+            f"{USAGE_HELP}\n\n"
+            "Your Telegram username must be registered with your admin.",
         )
         msg.processed_at = msg.created_at
         msg.save(update_fields=["processed_at"])
@@ -271,16 +347,12 @@ def process_telegram_message(
     if media_file_id:
         media_url = get_telegram_file_url(media_file_id)
 
-    def _reply_error(text):
+    def _reply(text):
         send_telegram_reply(chat_id, text)
 
-    # Telegram users are matched by phone number (same as WhatsApp).
-    # The from_username is used for logging only — phone must be shared with bot.
-    # For now, use from_username prefixed to attempt phone match.
-    # Caretakers must have their phone registered in the User model.
+    # Resolve user: try telegram_username, then telegram_id
     from core.models import User
 
-    # Try matching by Telegram username first, then fall back to phone
     phone_identifier = ""
     if from_username:
         user = User.objects.filter(telegram_username__iexact=from_username).first()
@@ -292,7 +364,10 @@ def process_telegram_message(
             phone_identifier = user.phone
 
     if not phone_identifier:
-        _reply_error("Your Telegram account is not linked. Contact your admin to register your Telegram username.")
+        _reply(
+            "Your Telegram account is not linked.\n"
+            "Contact your admin to register your Telegram username."
+        )
         return
 
     expense = _parse_and_create_expense(
@@ -301,7 +376,7 @@ def process_telegram_message(
         media_url=media_url,
         channel="telegram",
         message_ref=str(update_id),
-        reply_fn=_reply_error,
+        reply_fn=_reply,
     )
 
     if expense:
@@ -309,7 +384,4 @@ def process_telegram_message(
         msg.save(update_fields=["processed_at"])
 
         # Reply with confirmation directly in Telegram
-        send_telegram_reply(
-            chat_id,
-            f"Expense logged: {expense.category.name} {expense.amount_local} {expense.local_currency or 'GBP'}. Ref: {expense.id}",
-        )
+        _reply(_format_success_message(expense))
