@@ -83,7 +83,7 @@ INSTALLED_APPS = [
     "storages",
     "rest_framework.authtoken",
     "import_export",
-    # Allauth (Google OAuth2 for admin login)
+    # Allauth (Google OAuth2 for admin SSO)
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
@@ -127,22 +127,8 @@ DATABASES = {
     )
 }
 
-# Cache / Redis (for Celery broker, idempotency, rate limiting)
-REDIS_URL = env(
-    "REDIS_URL",
-    default="redis://localhost:6379/0",
-)
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": env("REDIS_URL", default="redis://localhost:6379/0"),
-    }
-}
-
-CELERY_BROKER_URL = env(
-    "CELERY_BROKER_URL",
-    default="redis://localhost:6379/1",
-)
+# Redis
+REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
 
 # Templates
 TEMPLATES = [
@@ -226,11 +212,6 @@ else:
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Celery
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = TIME_ZONE
 
 # Twilio (WhatsApp webhook)
 TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="")
@@ -256,19 +237,22 @@ REST_FRAMEWORK = {
 AFRICAS_TALKING_USERNAME = env("AFRICAS_TALKING_USERNAME")
 AFRICAS_TALKING_API_KEY = env("AFRICAS_TALKING_API_KEY")
 
-# Authentication backends (Django + allauth)
+# Authentication backends (Django default + allauth for Google OAuth)
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
-# django-allauth (Google OAuth2 for admin SSO)
-ACCOUNT_LOGIN_METHODS = {"email"}
-ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
-SOCIALACCOUNT_AUTO_SIGNUP = True
+# Login: admin's own login page (Unfold-styled), NOT allauth's /accounts/login/
 LOGIN_URL = "/admin/login/"
 LOGIN_REDIRECT_URL = "/admin/"
-SOCIALACCOUNT_LOGIN_ON_GET = True
+
+# django-allauth: Google OAuth2 for admin SSO
+ACCOUNT_LOGIN_METHODS = {"username", "email"}
+ACCOUNT_EMAIL_VERIFICATION = "none"  # Admin users are trusted
+ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_LOGIN_ON_GET = True  # Skip "Continue to Google?" interstitial
 
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
@@ -428,28 +412,21 @@ UNFOLD = {
     },
 }
 
-# Redis Cache Configuration
-if env("REDIS_URL", default=None):
-    CACHES = {
-        "default": {
-            "BACKEND": "django_redis.cache.RedisCache",
-            "LOCATION": env("REDIS_URL"),
-            "OPTIONS": {
-                "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            },
-        }
+# Cache (django-redis for production Redis)
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
     }
+}
 
-
-# ----------------------------
-# Celery Configuration
-# ----------------------------
-
-CELERY_BROKER_URL = env("REDIS_URL")
-CELERY_RESULT_BACKEND = env("REDIS_URL")
-
+# Celery
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://localhost:6379/1")
+CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
-
 CELERY_TIMEZONE = "UTC"
