@@ -7,10 +7,10 @@ the login is rejected. This prevents random Google accounts from signing up.
 
 import logging
 
-from allauth.account.models import EmailAddress
 from allauth.core.exceptions import ImmediateHttpResponse
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.contrib import messages
+from django.contrib.auth import login as auth_login
 from django.shortcuts import redirect
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ class ExistingUserOnlySocialAdapter(DefaultSocialAccountAdapter):
 
         # Try to find existing user by email
         from django.contrib.auth import get_user_model
+
         User = get_user_model()
 
         try:
@@ -48,13 +49,10 @@ class ExistingUserOnlySocialAdapter(DefaultSocialAccountAdapter):
         # Connect the social account to the existing user
         sociallogin.connect(request, user)
 
-        # Ensure allauth has an EmailAddress record too
-        EmailAddress.objects.get_or_create(
-            user=user,
-            email=email,
-            defaults={"verified": True, "primary": True},
-        )
+        # Log the user in directly and redirect — don't let allauth continue to signup
+        auth_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        raise ImmediateHttpResponse(redirect("/admin/"))
 
     def is_auto_signup_allowed(self, request, sociallogin):
-        """Allow auto-signup only if we already connected in pre_social_login."""
-        return sociallogin.is_existing
+        """Never allow signup — only existing users via pre_social_login."""
+        return False

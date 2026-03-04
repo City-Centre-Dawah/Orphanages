@@ -252,7 +252,7 @@ LOGIN_REDIRECT_URL = "/admin/"
 ACCOUNT_LOGIN_METHODS = {"username", "email"}
 ACCOUNT_EMAIL_VERIFICATION = "none"  # Admin users are trusted
 ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
-SOCIALACCOUNT_AUTO_SIGNUP = True  # Adapter controls actual signup logic
+SOCIALACCOUNT_AUTO_SIGNUP = False  # Adapter handles login via pre_social_login
 SOCIALACCOUNT_LOGIN_ON_GET = True  # Skip "Continue to Google?" interstitial
 SOCIALACCOUNT_ADAPTER = "core.adapters.ExistingUserOnlySocialAdapter"
 
