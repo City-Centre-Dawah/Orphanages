@@ -54,8 +54,8 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://orphanage.ccdawah.org",
-    "https://*.orphanage.ccdawah.org",
+    "https://orphanages.ccdawah.org",
+    "https://*.orphanages.ccdawah.org",
 ]
 
 if not DEBUG:
