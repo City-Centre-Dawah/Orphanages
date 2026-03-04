@@ -77,15 +77,16 @@ class ExpenseAdmin(admin.ModelAdmin):
         "category",
         "supplier",
         "amount_display",
+        "budget_warning_display",
         "status",
         "channel",
         "created_by",
         "created_at",
     ]
-    list_filter = ["site", "category", "status", "channel", "expense_date"]
+    list_filter = ["site", "category", "status", "channel", "budget_warning", "expense_date"]
     search_fields = ["supplier", "description", "notes"]
     date_hierarchy = "expense_date"
-    readonly_fields = ["created_at", "reviewed_at", "exchange_rate_used"]
+    readonly_fields = ["created_at", "reviewed_at", "exchange_rate_used", "budget_warning"]
     actions = ["mark_reviewed", "mark_queried"]
 
     def amount_display(self, obj):
@@ -99,6 +100,21 @@ class ExpenseAdmin(admin.ModelAdmin):
         return format_html("£{}", obj.amount)
 
     amount_display.short_description = "Amount"
+
+    def budget_warning_display(self, obj):
+        if obj.budget_warning == "over_100":
+            return format_html(
+                '<span style="color:#fff;background:#dc3545;padding:2px 6px;'
+                'border-radius:3px;font-weight:bold">OVER BUDGET</span>'
+            )
+        if obj.budget_warning == "over_80":
+            return format_html(
+                '<span style="color:#000;background:#ffc107;padding:2px 6px;'
+                'border-radius:3px;font-weight:bold">80%+</span>'
+            )
+        return ""
+
+    budget_warning_display.short_description = "Budget"
 
     @admin.action(description="Mark as reviewed")
     def mark_reviewed(self, request, queryset):

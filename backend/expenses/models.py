@@ -77,6 +77,19 @@ class Expense(models.Model):
     receipt_photo = models.FileField(upload_to="receipts/", blank=True, null=True)
     notes = models.TextField(blank=True)
 
+    # Budget guardrail
+    budget_warning = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        choices=[
+            ("", "None"),
+            ("over_80", "Over 80%"),
+            ("over_100", "Over 100%"),
+        ],
+        help_text="Auto-set when expense pushes category budget past 80% or 100%",
+    )
+
     # System fields
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="logged")
     channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default="web")
