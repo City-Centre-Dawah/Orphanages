@@ -9,6 +9,7 @@ from django.urls import include, path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("accounts/", include("allauth.urls")),  # Google OAuth callback
     path("health/", include("core.urls")),
     path("webhooks/", include("webhooks.urls")),
     path("api/v1/", include("api.urls")),
