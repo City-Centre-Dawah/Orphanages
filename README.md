@@ -45,8 +45,8 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 ┌──────────────────────────────────────────────────────────┐
 │                  App Droplet (2GB, ~£14/mo)               │
 │  ┌─────────┐    ┌────────────┐    ┌──────────────────┐   │
-│  │  Caddy   │───▶│  Gunicorn  │───▶│   Django 5.x     │   │
-│  │ (HTTPS)  │    │  (:8000)   │    │   (4 apps)       │   │
+│  │  Nginx   │───▶│  Gunicorn  │───▶│   Django 5.x     │   │
+│  │ (HTTPS)  │    │ (socket)   │    │   (5 apps)       │   │
 │  └─────────┘    └────────────┘    └────────┬─────────┘   │
 │                                            │             │
 │  ┌─────────┐                               │             │
@@ -82,7 +82,7 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 | **PostgreSQL** | DO Managed Database (1GB) | ~£12 | Automated backups, patching, monitoring |
 | **Media (receipts)** | DO Spaces | ~£4 | Unlimited growth, survives droplet rebuilds |
 | **Redis** | App droplet (or managed) | included | Celery broker + webhook idempotency |
-| **Django + Gunicorn + Caddy** | App Droplet 2GB | ~£14 | Web only — no DB or Celery competing for RAM |
+| **Django + Gunicorn + Nginx** | App Droplet 2GB | ~£14 | Web only — no DB or Celery competing for RAM |
 | **Celery Worker** | Celery Droplet 1GB | ~£10 | Background jobs isolated. Web stays up if worker crashes |
 
 **Total: ~£42–52/mo** — higher than a single droplet, but zero migration risk.
@@ -100,7 +100,7 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 | Task queue | Celery | 5.3+ |
 | Message broker | Redis | 7 |
 | WSGI server | Gunicorn | 21+ |
-| Reverse proxy | Caddy | latest (prod) |
+| Reverse proxy | Nginx + Certbot | latest (prod) |
 | WhatsApp | Twilio SDK | 8.x |
 | Telegram | Bot API (direct HTTP) | — |
 | SMS | Africa's Talking SDK | 2.x |
@@ -108,6 +108,9 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 | Image processing | Pillow | 10+ |
 | Reporting | Chart.js + WeasyPrint | PDF generation |
 | Admin theme | django-unfold | CCD brand identity |
+| Admin SSO | django-google-sso | Google OAuth2 (@ccdawah.org) |
+| Static files | WhiteNoise | Compressed static serving |
+| Import/export | django-import-export | Bulk admin operations |
 | Config management | django-environ | 0.11+ |
 | Package manager | pip | requirements.txt |
 
@@ -118,13 +121,14 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 | **Tests** | core, expenses, webhooks, api |
 | **REST API** | DRF at `/api/v1/` (sites, categories, expenses, sync) |
 | **Linting** | ruff + black (pyproject.toml) |
-| **CI/CD** | GitHub Actions (lint + test on push/PR) |
+| **CI/CD** | Not yet configured — deployment is manual via SSH (see `docs/DEPLOYMENT.md`) |
 | **SMS confirmation** | Africa's Talking (optional) |
 | **WhatsApp error feedback** | Replies on parse failure |
 | **Rate limiting** | 60/min on webhook (django-ratelimit) |
 | **SyncQueue** | Offline-first push → Celery process |
 | **Reports** | Dashboard (Chart.js), monthly summary PDF, budget vs actual PDF |
 | **Brand identity** | CCD maroon (#982b2e) across admin, reports, and PDFs |
+| **Google SSO** | django-google-sso for admin login (restricted to @ccdawah.org) |
 | **ASGI** | config/asgi.py for future WebSockets |
 
 ---
@@ -764,6 +768,9 @@ All configuration is loaded from a `.env` file at the **repo root** (not inside 
 | `TWILIO_WHATSAPP_WEBHOOK_TOKEN` | `""` | For WhatsApp | Additional webhook token |
 | `TELEGRAM_BOT_TOKEN` | `""` | For Telegram | Bot token from @BotFather |
 | `TELEGRAM_WEBHOOK_SECRET` | `""` | For Telegram | Secret for webhook validation |
+| `GOOGLE_OAUTH_CLIENT_ID` | `""` | For Google SSO | Google Cloud OAuth2 client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | `""` | For Google SSO | Google Cloud OAuth2 client secret |
+| `GOOGLE_SSO_PROJECT_ID` | `""` | For Google SSO | Google Cloud project ID |
 | `AFRICAS_TALKING_USERNAME` | `sandbox` | For SMS | Africa's Talking username |
 | `AFRICAS_TALKING_API_KEY` | `""` | For SMS | Africa's Talking API key |
 
@@ -965,7 +972,7 @@ Two-droplet architecture with managed services. See [docs/DEPLOYMENT.md](docs/DE
 |-----------|---------|
 | Ubuntu 24 | OS |
 | Python 3.11+ | Runtime |
-| Caddy | Reverse proxy, auto-HTTPS |
+| Nginx + Certbot | Reverse proxy, SSL termination |
 | Gunicorn | WSGI server (binds to 127.0.0.1:8000) |
 | Redis | Celery broker + idempotency cache |
 
@@ -981,13 +988,13 @@ python manage.py createsuperuser
 python manage.py collectstatic
 ```
 
-**systemd units:** `orphanage-web` (Gunicorn), `caddy`, `redis`
+**systemd units:** `gunicorn` (Django), `nginx`, `redis-server`
 
-**Caddyfile:** `yourdomain.com` → reverse proxy to `127.0.0.1:8000`
+**Nginx:** Reverse proxy to Gunicorn Unix socket, SSL via Certbot. See `docs/nginx.conf.example`.
 
 ### 4. Celery Droplet (1GB, ~£10/mo)
 
-Same Python/env as app droplet. Same `.env` (DATABASE_URL, REDIS_URL, AWS_*, TWILIO_*).
+Same Python/env as app droplet. Same `.env` (DATABASE_URL, REDIS_URL, CELERY_BROKER_URL, AWS_*, TWILIO_*, TELEGRAM_*).
 
 **systemd:** `orphanage-celery` → `celery -A config worker -l info`
 
@@ -1005,7 +1012,13 @@ open https://yourdomain.com/admin/
 
 # WhatsApp webhook
 # Configure Twilio to POST to https://yourdomain.com/webhooks/whatsapp/
-# Send a test WhatsApp message and verify expense appears in admin
+
+# Telegram webhook
+# Register via: curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
+#   -d "url=https://yourdomain.com/webhooks/telegram/" \
+#   -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+
+# Send test WhatsApp/Telegram messages and verify expenses appear in admin
 ```
 
 ### 6. Security Hardening

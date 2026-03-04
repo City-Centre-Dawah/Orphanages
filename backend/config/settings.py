@@ -28,6 +28,7 @@ env = environ.Env(
     AFRICAS_TALKING_API_KEY=(str, ""),
     TELEGRAM_BOT_TOKEN=(str, ""),
     TELEGRAM_WEBHOOK_SECRET=(str, ""),
+    EXCHANGE_RATE_API_KEY=(str, ""),
     GOOGLE_OAUTH_CLIENT_ID=(str, ""),
     GOOGLE_OAUTH_CLIENT_SECRET=(str, ""),
     # DO Spaces (S3-compatible) — leave empty for local filesystem
@@ -413,3 +414,14 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
+
+# Celery Beat schedule
+CELERY_BEAT_SCHEDULE = {
+    "update-exchange-rates-daily": {
+        "task": "expenses.update_exchange_rates",
+        "schedule": 60 * 60 * 24,  # every 24 hours
+    },
+}
+
+# Exchange Rate API
+EXCHANGE_RATE_API_KEY = env("EXCHANGE_RATE_API_KEY")

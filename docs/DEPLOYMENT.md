@@ -7,6 +7,8 @@ Scalable architecture: 2 droplets, managed PostgreSQL, DO Spaces. Designed for 2
 - DigitalOcean account
 - Domain pointed to your App droplet IP (for Certbot auto-SSL)
 - Twilio account (WhatsApp Business API)
+- Telegram bot created via @BotFather (for Telegram expense logging)
+- (Optional) Google Cloud project with OAuth2 credentials (for admin SSO)
 - (Optional) WeasyPrint system libraries for PDF report generation
 
 ---
@@ -104,9 +106,28 @@ Scalable architecture: 2 droplets, managed PostgreSQL, DO Spaces. Designed for 2
 2. Same SSH hardening as App droplet
 3. Install: Python 3.11, no nginx/Redis needed
 4. Clone repo, same venv setup
-5. Same `.env` as App (DATABASE_URL, REDIS_URL, AWS_*, TWILIO_*)
-6. systemd: `orphanage-celery` — `celery -A config worker -l info`
-7. Redis URL must point to App droplet's Redis (or managed Redis)
+5. Same `.env` as App (DATABASE_URL, REDIS_URL, CELERY_BROKER_URL, AWS_*, TWILIO_*, TELEGRAM_*)
+6. Redis URL and CELERY_BROKER_URL must point to App droplet's Redis (or managed Redis)
+7. Set up Celery systemd service (`/etc/systemd/system/orphanage-celery.service`):
+   ```ini
+   [Unit]
+   Description=CCD Orphanage Celery Worker + Beat
+   After=network.target
+
+   [Service]
+   User=deploy
+   WorkingDirectory=/opt/orphanage/Orphanages/backend
+   ExecStart=/opt/orphanage/venv/bin/celery -A config worker -B -l info
+   Restart=on-failure
+   RestartSec=5
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+8. Enable and start:
+   ```bash
+   sudo systemctl enable --now orphanage-celery
+   ```
 
 ---
 
@@ -119,6 +140,7 @@ ALLOWED_HOSTS=orphanages.ccdawah.org
 
 DATABASE_URL=postgres://user:pass@managed-db-host:25060/orphanage_db?sslmode=require
 REDIS_URL=redis://127.0.0.1:6379/0
+CELERY_BROKER_URL=redis://127.0.0.1:6379/1
 
 USE_SPACES=true
 AWS_ACCESS_KEY_ID=<spaces-key>
@@ -127,12 +149,27 @@ AWS_STORAGE_BUCKET_NAME=<bucket-name>
 AWS_S3_REGION_NAME=lon1
 AWS_S3_ENDPOINT_URL=https://lon1.digitaloceanspaces.com
 
+# WhatsApp (Twilio)
 TWILIO_ACCOUNT_SID=<sid>
 TWILIO_AUTH_TOKEN=<token>
+TWILIO_WHATSAPP_WEBHOOK_TOKEN=<custom-webhook-token>
+
+# Telegram Bot
+TELEGRAM_BOT_TOKEN=<bot-token-from-botfather>
+TELEGRAM_WEBHOOK_SECRET=<secret-token-for-webhook-validation>
+
+# Google OAuth2 (admin SSO) — from Google Cloud Console
+# Callback URL: https://orphanages.ccdawah.org/google_sso/callback/
+GOOGLE_OAUTH_CLIENT_ID=<client-id>
+GOOGLE_OAUTH_CLIENT_SECRET=<client-secret>
+GOOGLE_SSO_PROJECT_ID=<project-id>
 
 # Optional: SMS confirmation via Africa's Talking
 AFRICAS_TALKING_USERNAME=sandbox
 AFRICAS_TALKING_API_KEY=<api-key>
+
+# Exchange rate auto-fetch (exchangerate-api.com free tier)
+EXCHANGE_RATE_API_KEY=<api-key>
 ```
 
 ---
@@ -141,6 +178,7 @@ AFRICAS_TALKING_API_KEY=<api-key>
 
 After pushing code changes to main:
 
+**On the App droplet:**
 ```bash
 cd /opt/orphanage/Orphanages
 git pull origin main
@@ -154,7 +192,16 @@ sudo systemctl restart gunicorn
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-**Important:** Always run `collectstatic` after code updates — it copies CSS/JS from installed packages (unfold, admin, DRF) into the `staticfiles/` directory that nginx serves.
+**On the Celery droplet:**
+```bash
+cd /opt/orphanage/Orphanages
+git pull origin main
+source /opt/orphanage/venv/bin/activate
+pip install -r requirements.txt
+sudo systemctl restart orphanage-celery
+```
+
+**Important:** Always run `collectstatic` after code updates — it copies CSS/JS from installed packages (unfold, admin, DRF) into the `staticfiles/` directory that nginx serves. Always restart both Gunicorn and Celery after code changes.
 
 ---
 
@@ -165,8 +212,15 @@ sudo nginx -t && sudo systemctl reload nginx
 3. Admin: https://orphanages.ccdawah.org/admin/
 4. Reports dashboard: https://orphanages.ccdawah.org/reports/dashboard/
 5. PDF reports: https://orphanages.ccdawah.org/reports/monthly-summary/ and https://orphanages.ccdawah.org/reports/budget-vs-actual/
-6. Webhook: Configure Twilio WhatsApp webhook URL to `https://orphanages.ccdawah.org/webhooks/whatsapp/`
-7. Send test WhatsApp message; verify expense appears in admin
+6. Webhook (WhatsApp): Configure Twilio webhook URL to `https://orphanages.ccdawah.org/webhooks/whatsapp/`
+7. Webhook (Telegram): Register webhook via Telegram Bot API:
+   ```bash
+   curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
+     -d "url=https://orphanages.ccdawah.org/webhooks/telegram/" \
+     -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+   ```
+8. Google SSO: Verify OAuth2 callback URL `https://orphanages.ccdawah.org/google_sso/callback/` is in Google Cloud Console authorized redirect URIs
+9. Send test WhatsApp and Telegram messages; verify expenses appear in admin
 
 ---
 
@@ -190,4 +244,4 @@ Internet → Nginx (SSL termination, static files) → Gunicorn (Unix socket) �
 - **Nginx** handles HTTPS (Certbot/Let's Encrypt) and serves `/static/` directly from `backend/staticfiles/`
 - **Gunicorn** runs Django via Unix socket, with WhiteNoise as a fallback for static files
 - **Redis** provides caching, Celery broker, and webhook idempotency
-- **Celery** runs on a separate droplet for background processing (webhook message parsing)
+- **Celery** runs on a separate droplet for background processing (webhook message parsing, daily exchange rate fetching via Beat scheduler)
