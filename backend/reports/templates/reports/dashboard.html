@@ -11,7 +11,7 @@
         padding: 1.25rem;
         text-align: center;
     }
-    .stat-value { font-size: 2rem; font-weight: 700; color: #166534; }
+    .stat-value { font-size: 2rem; font-weight: 700; color: #982b2e; }
     .stat-label { font-size: 0.85rem; color: #6b7280; margin-top: 0.25rem; }
     .stat-card.flagged .stat-value { color: #dc2626; }
     .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
@@ -26,7 +26,7 @@
     .gauge-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
     .gauge-label { font-size: 0.85rem; font-weight: 600; color: #374151; }
     .gauge-pct { font-size: 0.85rem; font-weight: 700; }
-    .gauge-pct.ok { color: #16a34a; }
+    .gauge-pct.ok { color: #15803d; }
     .gauge-pct.warning { color: #d97706; }
     .gauge-pct.over { color: #dc2626; }
     .gauge-bar { background: #e5e7eb; border-radius: 99px; height: 10px; overflow: hidden; }
@@ -166,9 +166,9 @@
 {% block extra_scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
-    const GREEN = '#16a34a';
-    const GREEN_LIGHT = 'rgba(22,163,74,0.15)';
-    const COLORS = ['#16a34a','#22c55e','#4ade80','#86efac','#166534','#15803d','#14532d','#a3e635','#65a30d','#eab308'];
+    const BRAND = '#982b2e';
+    const BRAND_LIGHT = 'rgba(152,43,46,0.12)';
+    const COLORS = ['#982b2e','#b83539','#d44b4f','#e47275','#7f2628','#6c2527','#3b0f10','#e9e6df','#c9a96e','#8b6914'];
 
     // Monthly spending trend (line)
     new Chart(document.getElementById('trendChart'), {
@@ -178,12 +178,12 @@
             datasets: [{
                 label: 'Monthly Spend (GBP)',
                 data: {{ trend_values|safe }},
-                borderColor: GREEN,
-                backgroundColor: GREEN_LIGHT,
+                borderColor: BRAND,
+                backgroundColor: BRAND_LIGHT,
                 fill: true,
                 tension: 0.3,
                 pointRadius: 4,
-                pointBackgroundColor: GREEN,
+                pointBackgroundColor: BRAND,
             }]
         },
         options: {

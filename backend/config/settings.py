@@ -178,6 +178,7 @@ USE_TZ = True
 # Static and media files
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # Media: DO Spaces (production) or local filesystem (local dev)
 USE_SPACES = env("USE_SPACES", default=False)
@@ -284,19 +285,20 @@ UNFOLD = {
     "SITE_DROPDOWN": None,
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": False,
+    "SITE_LOGO": "/static/img/ccd-logo-red.svg",
     "COLORS": {
         "primary": {
-            "50": "#f0fdf4",
-            "100": "#dcfce7",
-            "200": "#bbf7d0",
-            "300": "#86efac",
-            "400": "#4ade80",
-            "500": "#22c55e",
-            "600": "#16a34a",
-            "700": "#15803d",
-            "800": "#166534",
-            "900": "#14532d",
-            "950": "#052e16",
+            "50": "#fdf2f2",
+            "100": "#fce4e4",
+            "200": "#f9cccf",
+            "300": "#f2a3a6",
+            "400": "#e47275",
+            "500": "#d44b4f",
+            "600": "#b83539",
+            "700": "#982b2e",
+            "800": "#7f2628",
+            "900": "#6c2527",
+            "950": "#3b0f10",
         },
     },
     "SIDEBAR": {
