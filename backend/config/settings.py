@@ -79,25 +79,19 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django.contrib.sites",
     "rest_framework",
     "storages",
     "rest_framework.authtoken",
     "import_export",
-    # Allauth (Google OAuth2 for admin SSO)
-    "allauth",
-    "allauth.account",
-    "allauth.socialaccount",
-    "allauth.socialaccount.providers.google",
     # Local apps
     "core",
     "expenses",
     "webhooks",
     "api",
     "reports",
+    # Google SSO for admin login — must be AFTER core so it extends our UserAdmin
+    "django_google_sso",
 ]
-
-SITE_ID = 1
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -108,7 +102,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "allauth.account.middleware.AccountMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -238,33 +231,22 @@ REST_FRAMEWORK = {
 AFRICAS_TALKING_USERNAME = env("AFRICAS_TALKING_USERNAME")
 AFRICAS_TALKING_API_KEY = env("AFRICAS_TALKING_API_KEY")
 
-# Authentication backends (Django default + allauth for Google OAuth)
+# Authentication backends
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
-    "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
-# Login: admin's own login page (Unfold-styled), NOT allauth's /accounts/login/
+# Login redirects
 LOGIN_URL = "/admin/login/"
 LOGIN_REDIRECT_URL = "/admin/"
 
-# django-allauth: Google OAuth2 for admin SSO
-ACCOUNT_LOGIN_METHODS = {"username", "email"}
-ACCOUNT_EMAIL_VERIFICATION = "none"  # Admin users are trusted
-ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
-SOCIALACCOUNT_AUTO_SIGNUP = False  # We intercept the signup URL directly
-SOCIALACCOUNT_LOGIN_ON_GET = True  # Skip "Continue to Google?" interstitial
-
-SOCIALACCOUNT_PROVIDERS = {
-    "google": {
-        "SCOPE": ["profile", "email"],
-        "AUTH_PARAMS": {"access_type": "online"},
-        "APP": {
-            "client_id": env("GOOGLE_OAUTH_CLIENT_ID", default=""),
-            "secret": env("GOOGLE_OAUTH_CLIENT_SECRET", default=""),
-        },
-    }
-}
+# django-google-sso: Google OAuth2 for admin login
+GOOGLE_SSO_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_SSO_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET", default="")
+GOOGLE_SSO_PROJECT_ID = env("GOOGLE_SSO_PROJECT_ID", default="")
+GOOGLE_SSO_ALLOWABLE_DOMAINS = ["ccdawah.org"]
+GOOGLE_SSO_AUTO_CREATE_USERS = False  # Only existing users can log in
+GOOGLE_SSO_AUTHENTICATION_BACKEND = "django.contrib.auth.backends.ModelBackend"
 
 # django-unfold admin theme
 UNFOLD = {
