@@ -40,7 +40,7 @@ class UserAdmin(BaseUserAdmin):
         (
             None,
             {
-                "fields": ("organisation", "site", "phone", "role"),
+                "fields": ("organisation", "site", "phone", "role", "telegram_username", "telegram_id"),
             },
         ),
     )
@@ -48,7 +48,7 @@ class UserAdmin(BaseUserAdmin):
         (
             None,
             {
-                "fields": ("organisation", "site", "phone", "role"),
+                "fields": ("organisation", "site", "phone", "role", "telegram_username", "telegram_id"),
             },
         ),
     )

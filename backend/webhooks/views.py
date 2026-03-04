@@ -51,7 +51,7 @@ def whatsapp_webhook(request):
             logger.warning("WhatsApp webhook: invalid signature")
             return HttpResponse("Forbidden", status=403)
 
-    # Idempotency check
+    # Idempotency check — Layer 1: Redis (fast, volatile, 24h TTL)
     message_sid = request.POST.get("MessageSid", "")
     if message_sid:
         try:
@@ -60,11 +60,20 @@ def whatsapp_webhook(request):
             r = redis.from_url(settings.REDIS_URL)
             key = f"webhook:whatsapp:{message_sid}"
             if r.exists(key):
-                logger.info("WhatsApp webhook: duplicate MessageSid, returning 200")
+                logger.info("WhatsApp webhook: duplicate MessageSid (Redis), returning 200")
                 return HttpResponse(status=200)
             r.setex(key, 86400, "1")  # 24h TTL
         except Exception as e:
             logger.warning("Redis idempotency check failed: %s", e)
+
+        # Idempotency check — Layer 2: DB (durable, survives Redis flush)
+        from webhooks.models import WhatsAppIncomingMessage
+
+        if WhatsAppIncomingMessage.objects.filter(
+            message_sid=message_sid, processed_at__isnull=False
+        ).exists():
+            logger.info("WhatsApp webhook: duplicate MessageSid (DB), returning 200")
+            return HttpResponse(status=200)
 
     # Parse and store
     from_number = request.POST.get("From", "").replace("whatsapp:", "")

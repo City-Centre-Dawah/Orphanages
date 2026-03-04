@@ -42,6 +42,7 @@ class Expense(models.Model):
     CHANNEL_CHOICES = [
         ("app", "App"),
         ("whatsapp", "WhatsApp"),
+        ("telegram", "Telegram"),
         ("web", "Web"),
         ("paper", "Paper"),
     ]

@@ -1,6 +1,6 @@
 # CCD Orphanage Portal
 
-Frontline expense management system for **City Centre Dawah's** orphanages in Uganda, Gambia, and Indonesia. Replaces the Excel workbook with a multi-site, multi-currency platform — caretakers log expenses via WhatsApp, UK admins review via Django Admin.
+Frontline expense management system for **City Centre Dawah's** orphanages in Uganda, Gambia, and Indonesia. Replaces the Excel workbook with a multi-site, multi-currency platform — caretakers log expenses via WhatsApp or Telegram, UK admins review via Django Admin.
 
 ---
 
@@ -12,7 +12,7 @@ Frontline expense management system for **City Centre Dawah's** orphanages in Ug
 - [Project Structure](#project-structure)
 - [Data Model](#data-model)
 - [API Endpoints](#api-endpoints)
-- [WhatsApp Integration](#whatsapp-integration)
+- [Messaging Integration (WhatsApp + Telegram)](#messaging-integration-whatsapp--telegram)
 - [Django Admin](#django-admin)
 - [Seed Data](#seed-data)
 - [Environment Variables](#environment-variables)
@@ -35,17 +35,17 @@ Frontline expense management system for **City Centre Dawah's** orphanages in Ug
 Designed for "set and forget for 2 years" — no single-droplet MVP, no future migration.
 
 ```
-                        ┌──────────────────────┐
-                        │   Twilio WhatsApp     │
-                        │   (webhook POST)      │
-                        └──────────┬───────────┘
-                                   │
-                                   ▼
+┌──────────────────────┐   ┌──────────────────────┐
+│   Twilio WhatsApp     │   │   Telegram Bot API    │
+│   (webhook POST)      │   │   (webhook POST)      │
+└──────────┬───────────┘   └──────────┬───────────┘
+           │                          │
+           ▼                          ▼
 ┌──────────────────────────────────────────────────────────┐
 │                  App Droplet (2GB, ~£14/mo)               │
 │  ┌─────────┐    ┌────────────┐    ┌──────────────────┐   │
 │  │  Caddy   │───▶│  Gunicorn  │───▶│   Django 5.x     │   │
-│  │ (HTTPS)  │    │  (:8000)   │    │   (3 apps)       │   │
+│  │ (HTTPS)  │    │  (:8000)   │    │   (4 apps)       │   │
 │  └─────────┘    └────────────┘    └────────┬─────────┘   │
 │                                            │             │
 │  ┌─────────┐                               │             │
@@ -59,7 +59,8 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 │              Celery Droplet (1GB, ~£10/mo)                │
 │  ┌───────────────────────────────────────────────────┐   │
 │  │  Celery Worker                                     │   │
-│  │  • Parse WhatsApp messages                         │   │
+│  │  • Parse WhatsApp/Telegram messages                │   │
+│  │  • Fuzzy category matching                         │   │
 │  │  • Currency conversion                             │   │
 │  │  • Receipt download                                │   │
 │  │  • Expense creation                                │   │
@@ -93,13 +94,15 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 |-------|-----------|---------|
 | Language | Python | 3.11+ |
 | Web framework | Django | 5.x |
-| API framework | Django REST Framework | 3.14+ (Phase 2) |
+| API framework | Django REST Framework | 3.14+ |
 | Database | PostgreSQL | 16 |
 | Task queue | Celery | 5.3+ |
 | Message broker | Redis | 7 |
 | WSGI server | Gunicorn | 21+ |
 | Reverse proxy | Caddy | latest (prod) |
 | WhatsApp | Twilio SDK | 8.x |
+| Telegram | Bot API (direct HTTP) | — |
+| SMS | Africa's Talking SDK | 2.x |
 | Media storage | DO Spaces (boto3 + django-storages) | S3-compatible |
 | Image processing | Pillow | 10+ |
 | Config management | django-environ | 0.11+ |
@@ -271,17 +274,19 @@ Orphanages/
     │       ├── __init__.py
     │       └── 0001_initial.py
     │
-    └── webhooks/                         # WhatsApp ingestion
+    └── webhooks/                         # Messaging channel ingestion
         ├── __init__.py
         ├── apps.py
-        ├── models.py                     # WhatsAppIncomingMessage (raw audit)
-        ├── views.py                      # Twilio webhook handler
-        ├── tasks.py                      # Celery task: parse message → create Expense
-        ├── urls.py                       # /whatsapp/ route
+        ├── models.py                     # WhatsAppIncomingMessage, TelegramIncomingMessage
+        ├── views.py                      # WhatsApp webhook (Twilio)
+        ├── views_telegram.py             # Telegram webhook (Bot API)
+        ├── tasks.py                      # Shared parser + per-channel Celery tasks
+        ├── whatsapp_reply.py             # Send replies via Twilio
+        ├── telegram_reply.py             # Send replies via Telegram Bot API
+        ├── sms.py                        # SMS confirmation via Africa's Talking
+        ├── urls.py                       # /whatsapp/ + /telegram/ routes
         ├── admin.py                      # Message preview (read-only)
         └── migrations/
-            ├── __init__.py
-            └── 0001_initial.py
 ```
 
 ---
@@ -305,6 +310,7 @@ Site (belongs to Organisation)
 
 User (extends AbstractUser, belongs to Organisation + Site)
 ├── phone (for WhatsApp matching)
+├── telegram_username, telegram_id (for Telegram matching)
 ├── role: admin | site_manager | caretaker | viewer
 ├── organisation (FK)
 └── site (FK, nullable — org-level admins have no site)
@@ -358,7 +364,7 @@ Expense ★ (the heart of the system)
 ├── exchange_rate_used (Decimal — frozen at entry time)
 ├── receipt_ref, receipt_photo (FileField)
 ├── status: logged | reviewed | queried
-├── channel: app | whatsapp | web | paper
+├── channel: app | whatsapp | telegram | web | paper
 ├── created_by (FK User), reviewed_by (FK User)
 └── created_at, reviewed_at
 
@@ -385,14 +391,22 @@ ExchangeRate (historical exchange rates)
     unique_together: [from_currency, to_currency, effective_date]
 ```
 
-### Webhooks App — WhatsApp Ingestion
+### Webhooks App — Messaging Ingestion
 
 ```
-WhatsAppIncomingMessage (raw incoming messages for audit)
+WhatsAppIncomingMessage (raw incoming WhatsApp messages for audit)
 ├── message_sid (unique, indexed — Twilio's message ID)
 ├── from_number, to_number
 ├── body, media_url
 ├── raw_payload (JSONField — full Twilio POST data)
+├── processed_at (null until Celery task completes)
+└── created_at
+
+TelegramIncomingMessage (raw incoming Telegram messages for audit)
+├── update_id (unique, indexed — Telegram's update ID)
+├── chat_id, from_user_id, from_username
+├── body, media_file_id
+├── raw_payload (JSONField — full Telegram Update)
 ├── processed_at (null until Celery task completes)
 └── created_at
 ```
@@ -413,7 +427,8 @@ Organisation ─┬─ Site ──────── Budget
               ├── ActivityType   ──── ProjectExpense.activity_type
               └── User ──────────── Expense.created_by
                    │
-                   └── phone ←→ WhatsAppIncomingMessage.from_number
+                   ├── phone ←→ WhatsAppIncomingMessage.from_number
+                   └── telegram_username ←→ TelegramIncomingMessage.from_username
 ```
 
 ---
@@ -427,6 +442,12 @@ Organisation ─┬─ Site ──────── Budget
 | GET | `/admin/` | Django Admin | Full admin dashboard |
 | GET | `/health/` | `core.views.health_check` | DB connectivity check (returns JSON) |
 | POST | `/webhooks/whatsapp/` | `webhooks.views.whatsapp_webhook` | Twilio WhatsApp webhook |
+| POST | `/webhooks/telegram/` | `webhooks.views_telegram.telegram_webhook` | Telegram Bot webhook |
+| POST | `/api/v1/auth/token/` | DRF `obtain_auth_token` | Token authentication |
+| GET | `/api/v1/sites/` | `api.views.SiteViewSet` | List sites |
+| GET/POST | `/api/v1/expenses/` | `api.views.ExpenseViewSet` | List/create expenses |
+| GET | `/api/v1/categories/` | `api.views.BudgetCategoryViewSet` | Budget categories |
+| POST | `/api/v1/sync/` | `api.views.SyncViewSet` | Offline-first sync |
 
 ### Health Check Response
 
@@ -448,23 +469,39 @@ Receives Twilio form-encoded POST data. Flow:
 4. Queue Celery task `process_whatsapp_message`
 5. Return HTTP 200 immediately
 
-### Planned (Phase 2 — REST API for Flutter App)
+### REST API (Token Auth)
 
-DRF is installed (`djangorestframework`) but not yet configured. Future endpoints:
+The REST API is live at `/api/v1/` with DRF token authentication:
 
-- `GET/POST /api/expenses/` — list and create expenses
-- `GET/PATCH /api/expenses/{id}/` — retrieve and update
-- `GET /api/budgets/summary/` — budget vs actual summary
-- `GET /api/exchange-rates/` — current rates
-- `POST /api/sync/` — offline-first sync from mobile app
+```bash
+# Get token
+curl -X POST https://yourdomain.com/api/v1/auth/token/ -d "username=user&password=pass"
+
+# Use token
+curl -H "Authorization: Token <token>" https://yourdomain.com/api/v1/expenses/
+```
+
+| Endpoint | Methods | Purpose |
+|----------|---------|---------|
+| `/api/v1/sites/` | GET | List sites for authenticated user |
+| `/api/v1/categories/` | GET | Budget categories |
+| `/api/v1/funding-sources/` | GET | Funding sources |
+| `/api/v1/activity-types/` | GET | Activity types |
+| `/api/v1/expenses/` | GET, POST | List/create expenses |
+| `/api/v1/sync/` | POST | Offline-first sync from mobile app |
 
 ---
 
-## WhatsApp Integration
+## Messaging Integration (WhatsApp + Telegram)
 
 ### How It Works
 
-Caretakers send expense data to the WhatsApp Business number. The system parses the message, converts currency, and creates an expense record — all without installing any app.
+Caretakers send expense data via WhatsApp or Telegram. The system parses the message, resolves the category (with fuzzy matching for typos), converts currency, and creates an expense record.
+
+- **WhatsApp** — ideal for Uganda and Gambia where WhatsApp dominates. Caretakers message the Business number directly.
+- **Telegram** — ideal for Indonesia where Telegram has 64% penetration. Caretakers message the @CCD bot.
+
+Both channels use the same message format and share the same expense-creation pipeline.
 
 ### Message Format
 
@@ -526,15 +563,16 @@ Caretaker's Phone                    System
 
 ### Key Implementation Details
 
-- **Category matching** is case-insensitive (`iexact` lookup)
-- **User resolution** by phone number from the `from_number` field
+- **Category matching** uses case-insensitive exact match, with fuzzy fallback via `difflib.get_close_matches()` for typos
+- **User resolution** — WhatsApp: by phone number. Telegram: by `telegram_username` or `telegram_id`
 - **Currency** determined by the user's site (`default_currency`)
 - **Exchange rate** fetched from `ExchangeRate` table, latest `effective_date`
-- **Receipt photos** downloaded from Twilio's media URL (10s timeout) and stored in DO Spaces or local filesystem
-- **Idempotency** via Redis key `webhook:whatsapp:{MessageSid}` with 24h TTL — handles Twilio retries safely
-- **Error handling** — invalid messages are silently dropped (logged as warnings). The task returns early rather than raising exceptions
+- **Receipt photos** downloaded from Twilio media URL (WhatsApp) or Telegram `getFile` API, stored in DO Spaces or local filesystem
+- **Idempotency** — three layers: Redis (fast, 24h TTL), DB check in view (durable), DB check in task (durable)
+- **Error feedback** — validation failures send helpful replies back to the user with examples and category lists
+- **Success confirmation** — logged expenses get a confirmation reply with amount, category, GBP conversion, and ref number
 
-### Twilio Configuration
+### WhatsApp Configuration (Twilio)
 
 1. Create a Twilio account and enable WhatsApp Business API
 2. Set the webhook URL to `https://yourdomain.com/webhooks/whatsapp/`
@@ -546,6 +584,22 @@ TWILIO_AUTH_TOKEN=your_auth_token_here
 ```
 
 In local development, leave `TWILIO_AUTH_TOKEN` empty to skip signature validation.
+
+### Telegram Configuration
+
+1. Message `@BotFather` on Telegram, run `/newbot`, get the token
+2. Register the webhook:
+   ```bash
+   curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://yourdomain.com/webhooks/telegram/&secret_token=<SECRET>"
+   ```
+3. Add credentials to `.env`:
+
+```env
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+TELEGRAM_WEBHOOK_SECRET=your_secret_here
+```
+
+4. Register caretakers' Telegram usernames in Django Admin (User → `telegram_username`)
 
 ---
 
@@ -637,6 +691,10 @@ All configuration is loaded from a `.env` file at the **repo root** (not inside 
 | `TWILIO_ACCOUNT_SID` | `""` | For WhatsApp | Twilio Account SID |
 | `TWILIO_AUTH_TOKEN` | `""` | For WhatsApp | Twilio Auth Token (skips validation if empty) |
 | `TWILIO_WHATSAPP_WEBHOOK_TOKEN` | `""` | For WhatsApp | Additional webhook token |
+| `TELEGRAM_BOT_TOKEN` | `""` | For Telegram | Bot token from @BotFather |
+| `TELEGRAM_WEBHOOK_SECRET` | `""` | For Telegram | Secret for webhook validation |
+| `AFRICAS_TALKING_USERNAME` | `sandbox` | For SMS | Africa's Talking username |
+| `AFRICAS_TALKING_API_KEY` | `""` | For SMS | Africa's Talking API key |
 
 ### Example `.env` (Local Development)
 
@@ -686,7 +744,8 @@ Celery handles asynchronous processing — currently WhatsApp message parsing. T
 
 | Task | Location | Retries | Purpose |
 |------|----------|---------|---------|
-| `process_whatsapp_message` | `webhooks/tasks.py` | 3 | Parse WhatsApp message, resolve user/category, convert currency, create Expense |
+| `process_whatsapp_message` | `webhooks/tasks.py` | 3 | Parse WhatsApp message → shared expense pipeline |
+| `process_telegram_message` | `webhooks/tasks.py` | 3 | Parse Telegram message → shared expense pipeline |
 | `debug_task` | `config/celery.py` | — | Prints request info (development only) |
 
 ### Running the Worker
@@ -726,7 +785,7 @@ Every model save is logged to the `AuditLog` table via Django signals (`core/sig
 
 ### Audited Models (13)
 
-`core.Organisation`, `core.Site`, `core.User`, `core.BudgetCategory`, `core.FundingSource`, `core.ActivityType`, `core.SyncQueue`, `expenses.Budget`, `expenses.Expense`, `expenses.ProjectBudget`, `expenses.ProjectExpense`, `expenses.ExchangeRate`, `webhooks.WhatsAppIncomingMessage`
+`core.Organisation`, `core.Site`, `core.User`, `core.BudgetCategory`, `core.FundingSource`, `core.ActivityType`, `core.SyncQueue`, `expenses.Budget`, `expenses.Expense`, `expenses.ProjectBudget`, `expenses.ProjectExpense`, `expenses.ExchangeRate`, `webhooks.WhatsAppIncomingMessage`, `webhooks.TelegramIncomingMessage`
 
 ### Viewing Audit Logs
 
@@ -932,8 +991,10 @@ The system is rolled out in phases so caretakers and admins have time to become 
 - [x] Django project with 13 models across 3 apps
 - [x] Django Admin with expense review, budget vs actual, filters, bulk actions
 - [x] Seed data command (categories, sites, exchange rates from workbook)
-- [x] WhatsApp webhook with Twilio signature validation + Redis idempotency
-- [x] Celery task for message parsing, currency conversion, and expense creation
+- [x] WhatsApp webhook with Twilio signature validation + 3-layer idempotency
+- [x] Telegram Bot webhook with secret token validation + 3-layer idempotency
+- [x] Shared Celery pipeline: message parsing, fuzzy category matching, currency conversion, expense creation
+- [x] REST API at `/api/v1/` (sites, categories, expenses, sync) with token auth
 - [x] Health check endpoint for uptime monitoring
 - [x] Docker Compose for local development (PostgreSQL 16 + Redis 7)
 - [x] DigitalOcean Spaces media storage (production, env-driven with local fallback)
@@ -948,15 +1009,12 @@ The system is rolled out in phases so caretakers and admins have time to become 
 
 | Feature | Description |
 |---------|-------------|
-| **REST API** | DRF serialisers, viewsets, and URL routing for mobile app |
 | **Flutter mobile app** | Offline-first expense logging with SQLite sync |
 | **SyncQueue integration** | Conflict resolution for offline-to-online data sync |
-| **SMS confirmation** | Africa's Talking integration — confirm expense receipt via SMS |
 | **Automated exchange rates** | Scheduled Celery task to fetch rates from external API |
-| **WhatsApp reply messages** | Send confirmation or error feedback back to the caretaker |
-| **Test suite** | Django TestCase / pytest for models, views, and tasks |
-| **Linting & formatting** | Ruff or Black + flake8 for code quality enforcement |
+| **Integration tests** | End-to-end tests with mocked WhatsApp/Telegram providers |
 | **CI/CD pipeline** | GitHub Actions for tests, linting, and deployment |
+| **Meta Cloud API migration** | Replace Twilio with free direct WhatsApp API |
 
 ---
 

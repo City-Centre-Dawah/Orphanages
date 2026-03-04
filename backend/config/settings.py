@@ -26,6 +26,10 @@ env = environ.Env(
     TWILIO_ACCOUNT_SID=(str, ""),
     AFRICAS_TALKING_USERNAME=(str, "sandbox"),
     AFRICAS_TALKING_API_KEY=(str, ""),
+    TELEGRAM_BOT_TOKEN=(str, ""),
+    TELEGRAM_WEBHOOK_SECRET=(str, ""),
+    GOOGLE_OAUTH_CLIENT_ID=(str, ""),
+    GOOGLE_OAUTH_CLIENT_SECRET=(str, ""),
     # DO Spaces (S3-compatible) — leave empty for local filesystem
     USE_SPACES=(bool, False),
     AWS_ACCESS_KEY_ID=(str, ""),
@@ -72,15 +76,23 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
     "rest_framework",
     "storages",
     "rest_framework.authtoken",
+    # Allauth (Google OAuth2 for admin login)
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
     # Local apps
     "core",
     "expenses",
     "webhooks",
     "api",
 ]
+
+SITE_ID = 1
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -90,6 +102,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -130,7 +143,7 @@ CELERY_BROKER_URL = env(
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -215,6 +228,10 @@ TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="")
 TWILIO_AUTH_TOKEN = env("TWILIO_AUTH_TOKEN", default="")
 TWILIO_WHATSAPP_WEBHOOK_TOKEN = env("TWILIO_WHATSAPP_WEBHOOK_TOKEN", default="")
 
+# Telegram Bot (expense logging via Telegram)
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
+TELEGRAM_WEBHOOK_SECRET = env("TELEGRAM_WEBHOOK_SECRET", default="")
+
 # DRF
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -229,6 +246,30 @@ REST_FRAMEWORK = {
 # Africa's Talking (SMS confirmation)
 AFRICAS_TALKING_USERNAME = env("AFRICAS_TALKING_USERNAME")
 AFRICAS_TALKING_API_KEY = env("AFRICAS_TALKING_API_KEY")
+
+# Authentication backends (Django + allauth)
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+# django-allauth (Google OAuth2 for admin SSO)
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
+SOCIALACCOUNT_AUTO_SIGNUP = True
+LOGIN_REDIRECT_URL = "/admin/"
+SOCIALACCOUNT_LOGIN_ON_GET = True
+
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {"access_type": "online"},
+        "APP": {
+            "client_id": env("GOOGLE_OAUTH_CLIENT_ID", default=""),
+            "secret": env("GOOGLE_OAUTH_CLIENT_SECRET", default=""),
+        },
+    }
+}
 
 # Redis Cache Configuration
 if env("REDIS_URL", default=None):
