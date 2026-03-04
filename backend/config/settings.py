@@ -181,6 +181,9 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
+# WhiteNoise: don't 500 on missing manifest entries
+WHITENOISE_MANIFEST_STRICT = False
+
 # Media: DO Spaces (production) or local filesystem (local dev)
 USE_SPACES = env("USE_SPACES", default=False)
 if USE_SPACES and env("AWS_ACCESS_KEY_ID") and env("AWS_STORAGE_BUCKET_NAME"):
@@ -204,7 +207,7 @@ if USE_SPACES and env("AWS_ACCESS_KEY_ID") and env("AWS_STORAGE_BUCKET_NAME"):
             },
         },
         "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
         },
     }
     MEDIA_URL = "/media/"
@@ -215,7 +218,7 @@ else:
             "BACKEND": "django.core.files.storage.FileSystemStorage",
         },
         "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
         },
     }
     MEDIA_URL = "media/"
@@ -264,6 +267,7 @@ AUTHENTICATION_BACKENDS = [
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
 SOCIALACCOUNT_AUTO_SIGNUP = True
+LOGIN_URL = "/admin/login/"
 LOGIN_REDIRECT_URL = "/admin/"
 SOCIALACCOUNT_LOGIN_ON_GET = True
 
