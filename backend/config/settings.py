@@ -55,6 +55,7 @@ USE_X_FORWARDED_HOST = True
 
 CSRF_TRUSTED_ORIGINS = [
     "https://orphanages.ccdawah.org",
+    "https://*.orphanages.ccdawah.org",
 ]
 
 if not DEBUG:
