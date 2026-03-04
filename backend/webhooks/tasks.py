@@ -54,12 +54,15 @@ def _resolve_category(org, category_name, reply_fn):
         reply_fn("No categories configured. Contact your admin.")
         return None
 
+    # Strict threshold (0.8) — in a financial system, Fuel must not silently
+    # match to Food, or Medical to Maintenance. Only near-exact typos
+    # (e.g. "Foood" → "Food") should auto-accept.
     matches = difflib.get_close_matches(
-        category_name, active_categories, n=3, cutoff=0.6
+        category_name, active_categories, n=3, cutoff=0.8
     )
 
     if len(matches) == 1:
-        # Single confident fuzzy match — accept it
+        # Single high-confidence fuzzy match — accept it
         category = BudgetCategory.objects.filter(
             organisation=org, name__iexact=matches[0], is_active=True
         ).first()
@@ -67,7 +70,7 @@ def _resolve_category(org, category_name, reply_fn):
         return category
 
     if len(matches) > 1:
-        # Ambiguous — ask user to clarify
+        # Ambiguous even at high threshold — ask user to clarify
         options = ", ".join(matches)
         reply_fn(f"Did you mean: {options}?\nPlease resend with the correct category.")
         return None
@@ -212,6 +215,72 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
     return expense
 
 
+def _check_budget_guardrail(expense, reply_fn):
+    """
+    Check if this expense pushes the category budget past 80% or 100%.
+
+    Sets expense.budget_warning and appends a warning to the reply.
+    Does NOT block the expense — flags only.
+
+    Returns warning text (str) or empty string if within budget.
+    """
+    from django.db.models import Q, Sum
+    from django.db.models.functions import Coalesce
+
+    from expenses.models import Budget, Expense
+
+    site = expense.site
+    category = expense.category
+    year = expense.expense_date.year
+
+    # Find the budget for this site/category/year
+    budget = Budget.objects.filter(
+        site=site, category=category, financial_year=year
+    ).first()
+
+    if not budget or not budget.annual_amount or budget.annual_amount <= 0:
+        # No budget set — nothing to check
+        return ""
+
+    # Sum all expenses for this site/category/year (including the new one)
+    total_spend = (
+        Expense.objects.filter(
+            site=site,
+            category=category,
+            expense_date__year=year,
+            status__in=["logged", "reviewed"],
+        ).aggregate(
+            total=Coalesce(Sum("amount"), 0)
+        )["total"]
+    )
+
+    pct_used = float(total_spend) * 100 / float(budget.annual_amount)
+    remaining = float(budget.annual_amount) - float(total_spend)
+
+    warning = ""
+    if pct_used >= 100:
+        expense.budget_warning = "over_100"
+        warning = (
+            f"\n⚠ BUDGET EXCEEDED: {category.name} is at {pct_used:.0f}% "
+            f"(£{total_spend:,.2f} of £{budget.annual_amount:,.2f})"
+        )
+    elif pct_used >= 80:
+        expense.budget_warning = "over_80"
+        warning = (
+            f"\n⚠ Budget alert: {category.name} is at {pct_used:.0f}% "
+            f"(£{remaining:,.2f} remaining of £{budget.annual_amount:,.2f})"
+        )
+
+    if warning:
+        expense.save(update_fields=["budget_warning"])
+        logger.warning(
+            "Budget guardrail: %s/%s/%s at %.1f%% (expense %s)",
+            site.name, category.name, year, pct_used, expense.id,
+        )
+
+    return warning
+
+
 def _format_success_message(expense):
     """Build a consistent success confirmation message."""
     currency = expense.local_currency or "GBP"
@@ -279,8 +348,13 @@ def process_whatsapp_message(
         msg.processed_at = expense.created_at
         msg.save(update_fields=["processed_at"])
 
+        # Budget guardrail check (flag, not block)
+        budget_warning = _check_budget_guardrail(expense, _reply)
+
         # Success: WhatsApp reply (primary) + SMS (fallback)
         confirmation = _format_success_message(expense)
+        if budget_warning:
+            confirmation += budget_warning
         _reply(confirmation)
 
         from core.models import User
@@ -383,5 +457,11 @@ def process_telegram_message(
         msg.processed_at = expense.created_at
         msg.save(update_fields=["processed_at"])
 
+        # Budget guardrail check (flag, not block)
+        budget_warning = _check_budget_guardrail(expense, _reply)
+
         # Reply with confirmation directly in Telegram
-        _reply(_format_success_message(expense))
+        confirmation = _format_success_message(expense)
+        if budget_warning:
+            confirmation += budget_warning
+        _reply(confirmation)
