@@ -55,6 +55,7 @@ USE_X_FORWARDED_HOST = True
 
 CSRF_TRUSTED_ORIGINS = [
     "https://orphanages.ccdawah.org",
+    "https://*.orphanages.ccdawah.org",
 ]
 
 if not DEBUG:
@@ -251,8 +252,9 @@ LOGIN_REDIRECT_URL = "/admin/"
 ACCOUNT_LOGIN_METHODS = {"username", "email"}
 ACCOUNT_EMAIL_VERIFICATION = "none"  # Admin users are trusted
 ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
-SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_AUTO_SIGNUP = True  # Adapter controls actual signup logic
 SOCIALACCOUNT_LOGIN_ON_GET = True  # Skip "Continue to Google?" interstitial
+SOCIALACCOUNT_ADAPTER = "core.adapters.ExistingUserOnlySocialAdapter"
 
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
