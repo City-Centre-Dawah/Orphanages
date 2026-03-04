@@ -3,6 +3,7 @@
 
 {% block extrastyle %}
 {{ block.super }}
+{% if google_login_url %}
 <style>
   .google-login {
     margin: 1em 0;
@@ -30,12 +31,15 @@
     font-size: 0.9em;
   }
 </style>
+{% endif %}
 {% endblock %}
 
 {% block content %}
+{% if google_login_url %}
 <div class="google-login">
-  <a href="{% url 'google_login' %}">Sign in with Google</a>
+  <a href="{{ google_login_url }}">Sign in with Google</a>
   <div class="divider">or use username and password below</div>
 </div>
+{% endif %}
 {{ block.super }}
 {% endblock %}
