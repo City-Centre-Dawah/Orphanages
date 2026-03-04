@@ -111,13 +111,13 @@ Scalable architecture: 2 droplets, managed PostgreSQL, DO Spaces. Designed for 2
 7. Set up Celery systemd service (`/etc/systemd/system/orphanage-celery.service`):
    ```ini
    [Unit]
-   Description=CCD Orphanage Celery Worker
+   Description=CCD Orphanage Celery Worker + Beat
    After=network.target
 
    [Service]
    User=deploy
    WorkingDirectory=/opt/orphanage/Orphanages/backend
-   ExecStart=/opt/orphanage/venv/bin/celery -A config worker -l info
+   ExecStart=/opt/orphanage/venv/bin/celery -A config worker -B -l info
    Restart=on-failure
    RestartSec=5
 
@@ -167,6 +167,9 @@ GOOGLE_SSO_PROJECT_ID=<project-id>
 # Optional: SMS confirmation via Africa's Talking
 AFRICAS_TALKING_USERNAME=sandbox
 AFRICAS_TALKING_API_KEY=<api-key>
+
+# Exchange rate auto-fetch (exchangerate-api.com free tier)
+EXCHANGE_RATE_API_KEY=<api-key>
 ```
 
 ---
@@ -241,4 +244,4 @@ Internet → Nginx (SSL termination, static files) → Gunicorn (Unix socket) �
 - **Nginx** handles HTTPS (Certbot/Let's Encrypt) and serves `/static/` directly from `backend/staticfiles/`
 - **Gunicorn** runs Django via Unix socket, with WhiteNoise as a fallback for static files
 - **Redis** provides caching, Celery broker, and webhook idempotency
-- **Celery** runs on a separate droplet for background processing (webhook message parsing)
+- **Celery** runs on a separate droplet for background processing (webhook message parsing, daily exchange rate fetching via Beat scheduler)
