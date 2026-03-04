@@ -13,6 +13,7 @@ Frontline expense management system for **City Centre Dawah's** orphanages in Ug
 - [Data Model](#data-model)
 - [API Endpoints](#api-endpoints)
 - [Messaging Integration (WhatsApp + Telegram)](#messaging-integration-whatsapp--telegram)
+- [Reporting](#reporting)
 - [Django Admin](#django-admin)
 - [Seed Data](#seed-data)
 - [Environment Variables](#environment-variables)
@@ -105,6 +106,8 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 | SMS | Africa's Talking SDK | 2.x |
 | Media storage | DO Spaces (boto3 + django-storages) | S3-compatible |
 | Image processing | Pillow | 10+ |
+| Reporting | Chart.js + WeasyPrint | PDF generation |
+| Admin theme | django-unfold | CCD brand identity |
 | Config management | django-environ | 0.11+ |
 | Package manager | pip | requirements.txt |
 
@@ -120,6 +123,8 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 | **WhatsApp error feedback** | Replies on parse failure |
 | **Rate limiting** | 60/min on webhook (django-ratelimit) |
 | **SyncQueue** | Offline-first push → Celery process |
+| **Reports** | Dashboard (Chart.js), monthly summary PDF, budget vs actual PDF |
+| **Brand identity** | CCD maroon (#982b2e) across admin, reports, and PDFs |
 | **ASGI** | config/asgi.py for future WebSockets |
 
 ---
@@ -212,6 +217,7 @@ celery -A config worker -l info
 | http://localhost:8000/admin/ | Django Admin dashboard |
 | http://localhost:8000/health/ | Health check (DB connectivity) |
 | http://localhost:8000/api/v1/ | REST API (Token auth: `/api/v1/auth/token/`) |
+| http://localhost:8000/reports/dashboard/ | Reports dashboard (Chart.js) |
 | http://localhost:8000/webhooks/whatsapp/ | WhatsApp webhook (POST only) |
 
 ### Local Development Notes
@@ -235,7 +241,11 @@ Orphanages/
 ├── requirements.txt                      # Python dependencies (pip)
 ├── docker-compose.yml                    # Local dev: PostgreSQL 16 + Redis 7
 ├── docs/
-│   └── DEPLOYMENT.md                     # Step-by-step production deployment
+│   ├── DEPLOYMENT.md                     # Step-by-step production deployment
+│   ├── USER_MANUAL.md                    # End-user manual for all roles
+│   ├── ONBOARDING_GUIDE.md              # Onboarding methodology
+│   ├── SETUP_GUIDE.md                    # Detailed setup guide
+│   └── *.svg, *.pdf                      # CCD brand assets (logos, brand book)
 │
 └── backend/                              # Django project root
     ├── manage.py                         # Django CLI entry point
@@ -273,6 +283,15 @@ Orphanages/
     │   └── migrations/
     │       ├── __init__.py
     │       └── 0001_initial.py
+    │
+    ├── reports/                          # Reporting & PDF generation
+    │   ├── views.py                      # Dashboard (Chart.js), monthly summary,
+    │   │                                 # budget vs actual (WeasyPrint PDFs)
+    │   ├── urls.py                       # /reports/ routes
+    │   └── templates/reports/            # base_report.html, dashboard.html,
+    │                                     # PDF/preview/form templates
+    │
+    ├── static/img/                       # CCD brand logos (SVG)
     │
     └── webhooks/                         # Messaging channel ingestion
         ├── __init__.py
@@ -443,6 +462,9 @@ Organisation ─┬─ Site ──────── Budget
 | GET | `/health/` | `core.views.health_check` | DB connectivity check (returns JSON) |
 | POST | `/webhooks/whatsapp/` | `webhooks.views.whatsapp_webhook` | Twilio WhatsApp webhook |
 | POST | `/webhooks/telegram/` | `webhooks.views_telegram.telegram_webhook` | Telegram Bot webhook |
+| GET | `/reports/dashboard/` | `reports.views.dashboard` | Interactive Chart.js dashboard |
+| GET | `/reports/monthly-summary/` | `reports.views.monthly_summary_pdf` | Monthly expense summary (HTML/PDF) |
+| GET | `/reports/budget-vs-actual/` | `reports.views.budget_vs_actual_pdf` | Budget vs actual report (HTML/PDF) |
 | POST | `/api/v1/auth/token/` | DRF `obtain_auth_token` | Token authentication |
 | GET | `/api/v1/sites/` | `api.views.SiteViewSet` | List sites |
 | GET/POST | `/api/v1/expenses/` | `api.views.ExpenseViewSet` | List/create expenses |
@@ -603,9 +625,58 @@ TELEGRAM_WEBHOOK_SECRET=your_secret_here
 
 ---
 
+## Reporting
+
+The `reports` app provides three views, all behind `@login_required`. Accessible from the admin sidebar or directly via URL.
+
+### Reports Dashboard
+
+**URL:** `/reports/dashboard/`
+
+Interactive Chart.js dashboard with:
+- **Summary cards:** Total spend, expense count, flagged expenses
+- **Monthly spending trend** (line chart)
+- **Category breakdown** (bar chart)
+- **Channel breakdown** (doughnut chart — WhatsApp vs Telegram vs web)
+- **Budget gauges** with colour-coded status (green = OK, amber = 80%+, red = over)
+- **Recent expenses** table
+
+Filterable by **site** and **year** via dropdowns.
+
+### Monthly Expense Summary
+
+**URL:** `/reports/monthly-summary/?site=<id>&year=<YYYY>&month=<MM>`
+
+Shows all expenses for a site in a given month, grouped by category with totals. Available as:
+- **HTML preview** (default) — rendered in the browser
+- **PDF download** — append `&format=pdf` (requires WeasyPrint)
+
+### Budget vs Actual Report
+
+**URL:** `/reports/budget-vs-actual/?site=<id>&year=<YYYY>`
+
+Shows annual budget utilisation per category with progress bars and status badges:
+- **OK** (green) — under 80%
+- **Warning** (amber) — 80–99%
+- **Over** (red) — 100%+
+
+Available as HTML preview or PDF download (`&format=pdf`).
+
+### PDF Generation
+
+PDF reports use **WeasyPrint** (optional dependency). If not installed, an error message is shown instead. Install with:
+
+```bash
+pip install weasyprint
+```
+
+> **Note:** WeasyPrint requires system libraries (cairo, pango, etc). On Ubuntu: `apt install libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0`
+
+---
+
 ## Django Admin
 
-The admin dashboard is the primary interface for UK administrators in Phase 1.
+The admin dashboard is the primary interface for UK administrators in Phase 1. Themed with **django-unfold** using the CCD brand palette (maroon `#982b2e`).
 
 ### Budget vs Actual
 
@@ -988,7 +1059,7 @@ The system is rolled out in phases so caretakers and admins have time to become 
 
 ## Phase 1 Deliverables
 
-- [x] Django project with 13 models across 3 apps
+- [x] Django project with 13 models across 4 apps (core, expenses, webhooks, reports)
 - [x] Django Admin with expense review, budget vs actual, filters, bulk actions
 - [x] Seed data command (categories, sites, exchange rates from workbook)
 - [x] WhatsApp webhook with Twilio signature validation + 3-layer idempotency
@@ -1002,6 +1073,11 @@ The system is rolled out in phases so caretakers and admins have time to become 
 - [x] Audit trail via Django signals on all 13 models
 - [x] Multi-currency support with frozen exchange rates per expense
 - [x] Custom User model with organisation, site, phone, and role
+- [x] Reports dashboard with Chart.js (spending trends, category breakdown, budget gauges)
+- [x] PDF report generation (monthly summary, budget vs actual) via WeasyPrint
+- [x] CCD brand identity applied across admin theme, reports, and PDFs (maroon `#982b2e`)
+- [x] Brand assets (SVG logos, brand book) stored in `docs/`
+- [x] User Manual, Onboarding Guide, and Setup Guide documentation
 
 ---
 
