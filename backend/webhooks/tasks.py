@@ -166,8 +166,8 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
     if local_currency and local_currency != "GBP":
         rate = (
             ExchangeRate.objects.filter(
-                from_currency=local_currency,
-                to_currency="GBP",
+                local_currency=local_currency,
+                base_currency="GBP",
                 effective_date__lte=date.today(),
             )
             .order_by("-effective_date")
@@ -199,7 +199,7 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
         supplier=f"{channel.title()} Entry",
         description=description[:500] if description else f"{channel.title()} expense: {category.name}",
         payment_method="cash",
-        amount=amount_gbp,
+        amount_gbp=amount_gbp,
         amount_local=amount_local,
         local_currency=local_currency or "",
         exchange_rate_used=exchange_rate_used,
@@ -227,14 +227,14 @@ def _check_budget_guardrail(expense, reply_fn):
     from django.db.models import Q, Sum
     from django.db.models.functions import Coalesce
 
-    from expenses.models import Budget, Expense
+    from expenses.models import Expense, SiteBudget
 
     site = expense.site
     category = expense.category
     year = expense.expense_date.year
 
     # Find the budget for this site/category/year
-    budget = Budget.objects.filter(
+    budget = SiteBudget.objects.filter(
         site=site, category=category, financial_year=year
     ).first()
 
@@ -250,7 +250,7 @@ def _check_budget_guardrail(expense, reply_fn):
             expense_date__year=year,
             status__in=["logged", "reviewed"],
         ).aggregate(
-            total=Coalesce(Sum("amount"), 0)
+            total=Coalesce(Sum("amount_gbp"), 0)
         )["total"]
     )
 
@@ -298,7 +298,7 @@ def _format_success_message(expense, channel="whatsapp"):
         msg += f"*Category:* {cat}\n"
         msg += f"*Amount:* {_tg_escape(str(expense.amount_local))} {_tg_escape(currency)}"
         if currency != "GBP":
-            msg += f" \\({_tg_escape(f'{expense.amount:.2f}')} GBP\\)"
+            msg += f" \\({_tg_escape(f'{expense.amount_gbp:.2f}')} GBP\\)"
         msg += f"\n*Receipt:* {receipt_status}"
     else:
         # WhatsApp: *bold* formatting
@@ -306,7 +306,7 @@ def _format_success_message(expense, channel="whatsapp"):
         msg += f"*Category:* {expense.category.name}\n"
         msg += f"*Amount:* {expense.amount_local} {currency}"
         if currency != "GBP":
-            msg += f" ({expense.amount:.2f} GBP)"
+            msg += f" ({expense.amount_gbp:.2f} GBP)"
         msg += f"\n*Receipt:* {receipt_status}"
 
     return msg

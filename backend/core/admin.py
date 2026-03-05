@@ -10,11 +10,11 @@ from unfold.admin import ModelAdmin
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
 from .models import (
-    ActivityType,
     AuditLog,
     BudgetCategory,
     FundingSource,
     Organisation,
+    ProjectCategory,
     Site,
     SyncQueue,
     User,
@@ -81,8 +81,8 @@ class FundingSourceAdmin(ModelAdmin):
     search_fields = ["name"]
 
 
-@admin.register(ActivityType)
-class ActivityTypeAdmin(ModelAdmin):
+@admin.register(ProjectCategory)
+class ProjectCategoryAdmin(ModelAdmin):
     list_display = ["name", "organisation", "sort_order", "is_active"]
     list_filter = ["organisation", "is_active"]
     search_fields = ["name"]

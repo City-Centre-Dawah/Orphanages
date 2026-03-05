@@ -36,6 +36,7 @@
    - 5.9 [Audit Trail](#59-audit-trail)
    - 5.10 [Reports Dashboard](#510-reports-dashboard)
    - 5.11 [PDF Reports](#511-pdf-reports)
+   - 5.12 [Managing Projects](#512-managing-projects)
 6. [REST API (Phase 2 Mobile App)](#6-rest-api-phase-2-mobile-app)
 7. [Troubleshooting](#7-troubleshooting)
 8. [Glossary](#8-glossary)
@@ -297,7 +298,7 @@ Use the right-side filter panel to narrow results:
 
 ### 4.3 Budget vs Actual Dashboard
 
-1. Click **"Budgets"** in the left sidebar
+1. Click **"Site budgets"** in the left sidebar
 2. You will see every budget line with:
    - **Annual Amount** — the approved budget for the year
    - **Actual Spend** — total expenses logged so far
@@ -331,8 +332,8 @@ After logging in at `/admin/`, you see the full Django Admin dashboard:
 
 | Section | Models | Purpose |
 |---------|--------|---------|
-| **CORE** | Organisations, Sites, Users, Budget categories, Funding sources, Activity types, Audit logs | Master data and user management |
-| **EXPENSES** | Budgets, Expenses, Exchange rates, Project budgets, Project expenses | Financial tracking |
+| **CORE** | Organisations, Sites, Users, Budget categories, Funding sources, Project categories, Audit logs | Master data and user management |
+| **EXPENSES** | Site budgets, Expenses, Exchange rates, Projects, Project budgets, Project expenses | Financial tracking |
 | **WEBHOOKS** | WhatsApp incoming messages, Telegram incoming messages | Raw message audit trail |
 
 ### 5.2 Reviewing Expenses
@@ -372,8 +373,8 @@ Budgets define the annual spending limit per category per site per financial yea
 
 **Creating a budget:**
 
-1. Go to **Expenses → Budgets**
-2. Click **"Add Budget"**
+1. Go to **Expenses → Site budgets**
+2. Click **"Add Site budget"**
 3. Select the **Site** (e.g. Kampala Orphanage)
 4. Select the **Category** (e.g. Food)
 5. Enter the **Financial year** (e.g. 2026)
@@ -386,7 +387,7 @@ Budgets define the annual spending limit per category per site per financial yea
 
 **Viewing budget status:**
 
-The Budget list shows actual spend, remaining, and % used columns. These are calculated in real-time from all logged and reviewed expenses.
+The Site budget list shows actual spend, remaining, and % used columns. These are calculated in real-time from all logged and reviewed expenses.
 
 ### 5.5 Managing Users
 
@@ -534,6 +535,29 @@ The report includes:
 
 > **Note:** PDF generation requires WeasyPrint to be installed on the server. If PDFs are unavailable, use the HTML preview instead.
 
+### 5.12 Managing Projects
+
+Projects let you track one-off or recurring initiatives that don't fit into the standard orphanage expense categories — for example, "Ramadan Food Packs 2026", "Emergency Flood Relief Bangladesh", or "New Masjid Build".
+
+**Creating a project:**
+
+1. Go to **Expenses → Projects**
+2. Click **"Add Project"**
+3. Fill in:
+   - **Site** — which orphanage this project is for
+   - **Category** — the project category (e.g. Building Wells, Community Development)
+   - **Name** — a descriptive name for the initiative
+   - **Description** — optional details
+   - **Start date** — when the project begins
+   - **End date** — optional, when the project is expected to finish
+   - **Budget amount** — total GBP budget for this project
+   - **Status** — Planned, Active, Completed, or Cancelled
+4. Click **Save**
+
+**Linking expenses to projects:**
+
+When logging a project expense under **Expenses → Project expenses**, you can now link it to a specific tracked project using the **Project** dropdown. This enables per-project spend tracking.
+
 ---
 
 ## 6. REST API (Phase 2 Mobile App)
@@ -547,7 +571,8 @@ A REST API exists for the planned Flutter mobile app. It uses token authenticati
 | `/api/v1/expenses/` | GET/POST | List or create expenses |
 | `/api/v1/categories/` | GET | Budget categories |
 | `/api/v1/funding-sources/` | GET | Funding sources |
-| `/api/v1/activity-types/` | GET | Activity types |
+| `/api/v1/project-categories/` | GET | Project categories |
+| `/api/v1/projects/` | GET | List projects |
 | `/api/v1/sync/` | POST | Offline-first sync |
 
 > This API is not yet used in production. It is ready for Phase 2 mobile app development.
@@ -596,6 +621,9 @@ A REST API exists for the planned Flutter mobile app. It uses token authenticati
 | **Fuzzy matching** | System's ability to match near-correct category names (strict 80% threshold) |
 | **Celery** | Background task processor that handles message parsing |
 | **Idempotency** | System prevents duplicate expenses from the same message |
+| **Project** | A trackable initiative (one-off or recurring) with its own budget and timeline. E.g. "Ramadan Food Packs 2026". |
+| **Project category** | The type of project activity (Building Wells, Community Development, etc.). Formerly called "Activity type". |
+| **Site budget** | The annual spending limit per expense category per orphanage site. |
 
 ---
 

@@ -58,13 +58,14 @@ backend/                    # Django project root (run manage.py from here)
 │   └── celery.py           # Celery app initialisation
 ├── core/                   # Multi-tenancy foundation
 │   ├── models.py           # Organisation, Site, User, BudgetCategory,
-│   │                       # FundingSource, ActivityType, SyncQueue, AuditLog
+│   │                       # FundingSource, ProjectCategory, SyncQueue, AuditLog
 │   ├── signals.py          # Audit logging via post_save on all models
 │   ├── admin.py            # Admin classes for core models
 │   ├── tests.py            # Health check, model tests
 │   └── management/commands/seed_data.py  # Idempotent seed data
 ├── expenses/               # Financial tracking
-│   ├── models.py           # Budget, Expense, ProjectBudget, ProjectExpense, ExchangeRate
+│   ├── models.py           # SiteBudget, Expense, Project, ProjectBudget,
+│   │                       # ProjectExpense, ExchangeRate
 │   └── admin.py            # Budget vs actual displays, expense filters
 ├── reports/                # Reporting & PDF generation
 │   ├── views.py            # Dashboard (Chart.js), monthly summary PDF,
@@ -75,7 +76,7 @@ backend/                    # Django project root (run manage.py from here)
 ├── static/img/             # CCD brand logos (SVG)
 ├── api/                    # REST API (Phase 2 mobile app backend)
 │   ├── views.py            # ViewSets: Site, BudgetCategory, FundingSource,
-│   │                       # ActivityType, Expense, Sync
+│   │                       # ProjectCategory, Project, Expense, Sync
 │   ├── serializers.py      # DRF serializers for all models
 │   ├── urls.py             # Router-based URL config
 │   └── tests.py            # API endpoint tests
@@ -106,7 +107,8 @@ backend/                    # Django project root (run manage.py from here)
 | GET/POST | `/api/v1/expenses/` | List/create expenses |
 | GET | `/api/v1/categories/` | Budget categories |
 | GET | `/api/v1/funding-sources/` | Funding sources |
-| GET | `/api/v1/activity-types/` | Activity types |
+| GET | `/api/v1/project-categories/` | Project categories |
+| GET | `/api/v1/projects/` | List projects |
 | POST | `/api/v1/sync/` | Offline-first sync endpoint |
 | GET | `/reports/dashboard/` | Interactive Chart.js dashboard (login required) |
 | GET | `/reports/monthly-summary/` | Monthly expense summary (HTML preview or PDF) |
@@ -118,7 +120,7 @@ backend/                    # Django project root (run manage.py from here)
 Organisation → Site → User hierarchy. All queries filter by organisation/site to enforce data isolation.
 
 ### Multi-currency
-Every expense stores both `amount` (GBP, reporting currency) and `amount_local` (UGX/GMD/IDR). The `exchange_rate_used` is frozen at time of entry from the `ExchangeRate` table.
+Every expense stores both `amount_gbp` (GBP, reporting currency) and `amount_local` (UGX/GMD/IDR). The `exchange_rate_used` is frozen at time of entry from the `ExchangeRate` table.
 
 ### Dual-channel messaging (WhatsApp + Telegram)
 Both webhook endpoints (`/webhooks/whatsapp/` and `/webhooks/telegram/`) return 200 immediately and queue a Celery task. The shared `_parse_and_create_expense()` function handles parsing, category resolution (with fuzzy matching at 0.8 cutoff), currency conversion, receipt download, and expense creation. Channel-specific tasks (`process_whatsapp_message`, `process_telegram_message`) handle message storage, user lookup, and reply routing via their respective APIs.
@@ -134,6 +136,9 @@ Admin login supports Google OAuth2 via `django-google-sso`. Restricted to `@ccda
 
 ### Audit trail
 Django signals (`core/signals.py`) log all model saves to `AuditLog` with user, table, record ID, and action (CREATE/UPDATE).
+
+### Project tracking
+The `Project` model allows tracking one-off or recurring initiatives (e.g. "Ramadan Food Packs 2026", "Emergency Flood Relief Bangladesh"). Each project has a site, project category, budget, timeline, and lifecycle status (planned → active → completed/cancelled). `ProjectExpense` records can optionally link to a `Project` for per-initiative spend tracking.
 
 ### Reporting
 Three report views in `reports/views.py`, all behind `@login_required`:
@@ -196,6 +201,33 @@ All config is loaded from `.env` at the repo root (not `backend/`). See `.env.ex
 - **Fuzzy category matching:** If exact match fails, uses `difflib.get_close_matches()` with cutoff=0.8 (strict for financial accuracy) to suggest corrections.
 - **Migrations:** Per-app migration files. When adding models or fields, run `makemigrations` then `migrate`.
 - **Linting:** `ruff` and `black` are in `requirements.txt`. No CI enforcement yet.
+
+## Model Naming Conventions
+
+All model and field names follow these principles for DB clarity:
+
+| Model | DB Table | Purpose |
+|-------|----------|---------|
+| `Organisation` | `core_organisation` | Top-level entity |
+| `Site` | `core_site` | Orphanage location |
+| `User` | `core_user` | Custom auth user |
+| `BudgetCategory` | `core_budgetcategory` | Expense categories (Food, Salaries, etc.) |
+| `FundingSource` | `core_fundingsource` | Where money comes from |
+| `ProjectCategory` | `core_projectcategory` | Project types (Building Wells, etc.) |
+| `SiteBudget` | `expenses_sitebudget` | Annual budget per category per site |
+| `Expense` | `expenses_expense` | Individual expense records |
+| `Project` | `expenses_project` | Tracked initiatives with budget and timeline |
+| `ProjectBudget` | `expenses_projectbudget` | Budget per project category per site |
+| `ProjectExpense` | `expenses_projectexpense` | Project-specific expenses |
+| `ExchangeRate` | `expenses_exchangerate` | Currency conversion rates |
+
+**Key field naming:**
+- `amount_gbp` — GBP amount (reporting currency), never ambiguous
+- `amount_local` — Local currency amount (UGX/GMD/IDR)
+- `local_currency` / `base_currency` — On ExchangeRate, clearly indicates direction (1 base = X local)
+- `project_category` — FK to ProjectCategory (not the ambiguous "activity_type")
+- `project_name` — Free-text project name on ProjectExpense (for untracked expenses)
+- `project` — FK to Project on ProjectExpense (for tracked initiatives)
 
 ## Code Conventions
 

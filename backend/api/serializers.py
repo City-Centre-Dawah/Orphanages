@@ -2,8 +2,8 @@
 
 from rest_framework import serializers
 
-from core.models import ActivityType, BudgetCategory, FundingSource, Site, SyncQueue
-from expenses.models import Expense
+from core.models import BudgetCategory, FundingSource, ProjectCategory, Site, SyncQueue
+from expenses.models import Expense, Project
 
 
 class SiteSerializer(serializers.ModelSerializer):
@@ -24,9 +24,9 @@ class FundingSourceSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "is_active"]
 
 
-class ActivityTypeSerializer(serializers.ModelSerializer):
+class ProjectCategorySerializer(serializers.ModelSerializer):
     class Meta:
-        model = ActivityType
+        model = ProjectCategory
         fields = ["id", "name", "sort_order", "is_active"]
 
 
@@ -45,7 +45,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
             "expense_date",
             "supplier",
             "description",
-            "amount",
+            "amount_gbp",
             "amount_local",
             "local_currency",
             "status",
@@ -72,7 +72,7 @@ class ExpenseCreateSerializer(serializers.ModelSerializer):
             "supplier",
             "description",
             "payment_method",
-            "amount",
+            "amount_gbp",
             "amount_local",
             "local_currency",
         ]
@@ -80,6 +80,29 @@ class ExpenseCreateSerializer(serializers.ModelSerializer):
             "funding_source": {"required": False},
             "description": {"required": False},
         }
+
+
+class ProjectSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source="category.name", read_only=True)
+    site_name = serializers.CharField(source="site.name", read_only=True)
+
+    class Meta:
+        model = Project
+        fields = [
+            "id",
+            "site",
+            "site_name",
+            "category",
+            "category_name",
+            "name",
+            "description",
+            "start_date",
+            "end_date",
+            "budget_amount",
+            "status",
+            "created_at",
+        ]
+        read_only_fields = ["created_at"]
 
 
 class SyncQueueSerializer(serializers.ModelSerializer):

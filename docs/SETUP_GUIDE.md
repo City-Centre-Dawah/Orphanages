@@ -615,7 +615,7 @@ Running migrations:
 
 ### Step 4.3 — Understand what was just created
 
-The migrations created these 13 tables in the database:
+The migrations created these 14 tables in the database:
 
 | Table | App | Purpose |
 |-------|-----|---------|
@@ -624,13 +624,14 @@ The migrations created these 13 tables in the database:
 | `core_user` | core | User accounts with phone, role, site assignment |
 | `core_budgetcategory` | core | Expense categories (Food, Salaries, etc.) |
 | `core_fundingsource` | core | Where money comes from (Zakat, Sadaqah, etc.) |
-| `core_activitytype` | core | Project types (Wells, Masjid Support, etc.) |
+| `core_projectcategory` | core | Project categories (Wells, Masjid Support, etc.) |
 | `core_syncqueue` | core | Mobile app sync queue (Phase 2, not used yet) |
 | `core_auditlog` | core | Every change to every record is logged here |
-| `expenses_budget` | expenses | Annual budgets per category per site |
+| `expenses_sitebudget` | expenses | Annual budgets per category per site |
 | `expenses_expense` | expenses | Individual expense records (the main data) |
 | `expenses_projectbudget` | expenses | Project-specific budgets |
 | `expenses_projectexpense` | expenses | Project-specific expenses |
+| `expenses_project` | expenses | Tracked projects/initiatives |
 | `expenses_exchangerate` | expenses | Currency conversion rates |
 | `webhooks_whatsappincomingmessage` | webhooks | Raw WhatsApp messages for audit |
 | `webhooks_telegramincomingmessage` | webhooks | Raw Telegram messages for audit |
@@ -641,7 +642,7 @@ Plus Django's built-in tables for admin, auth, sessions, and content types.
 
 ### Step 4.4 — Seed the database with initial data
 
-The seed command populates the database with the organisations, sites, categories, funding sources, activity types, and exchange rates from the original Excel workbook:
+The seed command populates the database with the organisations, sites, categories, funding sources, project categories, and exchange rates from the original Excel workbook:
 
 ```
 $ python3 manage.py seed_data
@@ -655,7 +656,7 @@ Site: Banjul Orphanage (created/exists)
 Site: Indonesia Orphanage (created/exists)
 Budget categories: 10 created/verified
 Funding sources: 6 created/verified
-Activity types: 5 created/verified
+Project categories: 5 created/verified
 Exchange rates: 3 created/verified
 ```
 
@@ -669,7 +670,7 @@ Exchange rates: 3 created/verified
 | Sites | Kampala Orphanage (Uganda, UGX), Banjul Orphanage (Gambia, GMD), Indonesia Orphanage (Indonesia, IDR) |
 | Budget categories | Food, Salaries, Utilities, Medical, Clothing, Education, Maintenance, Transportation, Renovations, Contingency |
 | Funding sources | General Fund, Restricted Donation, Zakat, Sadaqah, Project Grant, Other |
-| Activity types | Building Wells, Donations for the Poor, Masjid Support, School Support, Community Development |
+| Project categories | Building Wells, Donations for the Poor, Masjid Support, School Support, Community Development |
 | Exchange rates | 1 GBP = 5,000 UGX, 1 GBP = 75 GMD, 1 GBP = 20,000 IDR |
 
 These exchange rates are placeholders. In production, they should be updated to real rates.
@@ -823,7 +824,7 @@ You will see a login page. Enter the username and password you created in Step 4
 After logging in, you should see the **Django administration** page with these sections:
 
 **CORE**
-- Activity types
+- Project categories
 - Audit logs
 - Budget categories
 - Funding sources
@@ -833,11 +834,12 @@ After logging in, you should see the **Django administration** page with these s
 - Users
 
 **EXPENSES**
-- Budgets
+- Site budgets
 - Exchange rates
 - Expenses
 - Project budgets
 - Project expenses
+- Projects
 
 **WEBHOOKS**
 - Whats app incoming messages
@@ -853,7 +855,7 @@ Click on each of these and verify you see data:
 2. **Sites** → 3 records: Kampala, Banjul, Indonesia
 3. **Budget categories** → 10 records: Food, Salaries, Utilities, etc.
 4. **Funding sources** → 6 records: General Fund, Restricted Donation, etc.
-5. **Activity types** → 5 records: Building Wells, Donations for the Poor, etc.
+5. **Project categories** → 5 records: Building Wells, Donations for the Poor, etc.
 6. **Exchange rates** → 3 records: UGX, GMD, IDR rates
 7. **Users** → 1 record: your superuser account
 8. **Audit logs** → Multiple records (one for each seeded item — the audit trail is working!)
@@ -895,13 +897,13 @@ Let's create a test expense to confirm the full flow works:
 
 ### Step 5.8 — Check the budget vs actual display
 
-1. First, create a budget: go to **"Budgets"** → **"+ Add"**
+1. First, create a budget: go to **"Site budgets"** → **"+ Add"**
    - **Site:** Kampala Orphanage
    - **Category:** Food
    - **Financial year:** 2026
    - **Annual amount:** 1000.00
    - Click **"Save"**
-2. Go back to the **Budgets** list
+2. Go back to the **Site budgets** list
 3. You should see columns showing:
    - **Annual amount:** £1,000.00
    - **Actual spend:** £10.00 (from your test expense)

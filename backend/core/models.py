@@ -1,7 +1,7 @@
 """
 Core models for CCD Orphanage Portal.
 
-Organisation, Site, User, BudgetCategory, FundingSource, ActivityType,
+Organisation, Site, User, BudgetCategory, FundingSource, ProjectCategory,
 SyncQueue, AuditLog — as specified in Strategic Architecture Report V3 Section 06.
 """
 
@@ -84,8 +84,8 @@ class FundingSource(models.Model):
         return self.name
 
 
-class ActivityType(models.Model):
-    """01_Settings!G4:G8 — 5 types: Building Wells, Donations for the Poor, etc."""
+class ProjectCategory(models.Model):
+    """01_Settings!G4:G8 — 5 categories: Building Wells, Donations for the Poor, etc."""
 
     organisation = models.ForeignKey(Organisation, on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
@@ -94,6 +94,8 @@ class ActivityType(models.Model):
 
     class Meta:
         ordering = ["sort_order", "name"]
+        verbose_name = "Project category"
+        verbose_name_plural = "Project categories"
 
     def __str__(self):
         return self.name
