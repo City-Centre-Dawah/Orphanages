@@ -252,6 +252,9 @@ GOOGLE_SSO_PROJECT_ID = env("GOOGLE_SSO_PROJECT_ID", default="")
 GOOGLE_SSO_ALLOWABLE_DOMAINS = ["ccdawah.org"]
 GOOGLE_SSO_AUTO_CREATE_USERS = False  # Only existing users can log in
 GOOGLE_SSO_AUTHENTICATION_BACKEND = "django.contrib.auth.backends.ModelBackend"
+GOOGLE_SSO_CALLBACK_DOMAIN = env(
+    "GOOGLE_SSO_CALLBACK_DOMAIN", default="orphanages.ccdawah.org"
+)  # Explicit domain avoids X-Forwarded-Proto duplication issues
 
 # django-unfold admin theme
 UNFOLD = {

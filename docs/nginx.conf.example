@@ -35,9 +35,10 @@ server {
     }
 
     # Everything else → Gunicorn via Unix socket
+    # Note: proxy_params already includes X-Forwarded-Proto — do NOT add it again
+    # or the header will be duplicated ("https, https"), breaking OAuth redirect URIs.
     location / {
         include proxy_params;
-        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_pass http://unix:/opt/orphanage/Orphanages/backend/gunicorn.sock;
     }
 
