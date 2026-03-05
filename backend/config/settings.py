@@ -69,6 +69,8 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
+X_FRAME_OPTIONS = "DENY"
+
 
 
 # Application definition
