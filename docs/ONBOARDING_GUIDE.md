@@ -129,7 +129,7 @@ For each caretaker at the site:
 
 For each category at the site:
 
-1. **Expenses → Budgets → Add Budget**
+1. **Expenses → Site budgets → Add Site budget**
 2. Fill in:
 
 | Field | Value |
@@ -214,7 +214,7 @@ Before involving anyone else, test the full pipeline yourself:
 - Show how to click into an expense to see full details
 
 **4. Budget vs Actual View (10 min)**
-- Navigate to the Budgets list
+- Navigate to the Site budgets list
 - Explain each column: Annual Amount, Actual Spend, Remaining, % Used
 - Show how this replaces the old Excel summary sheet
 - Discuss what actions to take when budget is running low
@@ -436,9 +436,9 @@ If CCD opens a new orphanage location:
 3. Rate: current rate (e.g. 170)
 4. Effective date: today
 
-### Step 3: Set Up Budgets
+### Step 3: Set Up Site Budgets
 
-Create a Budget entry for each category for the new site and current financial year.
+Create a Site budget entry for each category for the new site and current financial year.
 
 ### Step 4: Create Users
 
@@ -513,7 +513,7 @@ SITE: ________________________  DATE: ____________
 PHASE 1 — ADMIN SETUP (UK)
 [ ] Site exists in system
 [ ] Exchange rate set for local currency
-[ ] Budgets created for all categories (current year)
+[ ] Site budgets created for all categories (current year)
 [ ] Site manager account created (staff status = true)
 [ ] All caretaker accounts created
 [ ] All phone numbers in international format

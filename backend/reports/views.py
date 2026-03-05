@@ -15,7 +15,7 @@ from django.shortcuts import render
 from django.template.loader import render_to_string
 
 from core.models import Site
-from expenses.models import Budget, Expense
+from expenses.models import Expense, SiteBudget
 
 
 def _decimal_default(obj):
@@ -72,12 +72,12 @@ def monthly_summary_pdf(request):
     # Summary by category
     category_totals = (
         expenses.values("category__name")
-        .annotate(total_gbp=Sum("amount"), total_local=Sum("amount_local"))
+        .annotate(total_gbp=Sum("amount_gbp"), total_local=Sum("amount_local"))
         .order_by("category__name")
     )
 
     grand_total = expenses.aggregate(
-        total_gbp=Coalesce(Sum("amount"), Value(0), output_field=DecimalField()),
+        total_gbp=Coalesce(Sum("amount_gbp"), Value(0), output_field=DecimalField()),
         total_local=Coalesce(Sum("amount_local"), Value(0), output_field=DecimalField()),
     )
 
@@ -148,12 +148,12 @@ def budget_vs_actual_pdf(request):
         })
 
     budgets = (
-        Budget.objects.filter(site=site, financial_year=year)
+        SiteBudget.objects.filter(site=site, financial_year=year)
         .select_related("category")
         .annotate(
             actual_spend=Coalesce(
                 Sum(
-                    "category__expenses__amount",
+                    "category__expenses__amount_gbp",
                     filter=Q(
                         category__expenses__status__in=["logged", "reviewed"],
                         category__expenses__expense_date__year=year,
@@ -248,7 +248,7 @@ def dashboard(request):
         expense_qs
         .annotate(month=TruncMonth("expense_date"))
         .values("month")
-        .annotate(total=Sum("amount"))
+        .annotate(total=Sum("amount_gbp"))
         .order_by("month")
     )
     trend_labels = [d["month"].strftime("%b %Y") for d in monthly_data]
@@ -258,7 +258,7 @@ def dashboard(request):
     category_data = (
         expense_qs
         .values("category__name")
-        .annotate(total=Sum("amount"))
+        .annotate(total=Sum("amount_gbp"))
         .order_by("-total")
     )
     cat_labels = [d["category__name"] for d in category_data]
@@ -268,7 +268,7 @@ def dashboard(request):
     channel_data = (
         expense_qs
         .values("channel")
-        .annotate(total=Sum("amount"))
+        .annotate(total=Sum("amount_gbp"))
         .order_by("channel")
     )
     channel_labels = [d["channel"].title() for d in channel_data]
@@ -279,12 +279,12 @@ def dashboard(request):
     if site_id:
         budget_filter["site_id"] = site_id
     budgets = (
-        Budget.objects.filter(**budget_filter)
+        SiteBudget.objects.filter(**budget_filter)
         .select_related("category", "site")
         .annotate(
             actual_spend=Coalesce(
                 Sum(
-                    "category__expenses__amount",
+                    "category__expenses__amount_gbp",
                     filter=Q(
                         category__expenses__status__in=["logged", "reviewed"],
                         category__expenses__expense_date__year=year,
@@ -317,7 +317,7 @@ def dashboard(request):
 
     # --- Summary stats ---
     total_spend = expense_qs.aggregate(
-        total=Coalesce(Sum("amount"), Value(0), output_field=DecimalField())
+        total=Coalesce(Sum("amount_gbp"), Value(0), output_field=DecimalField())
     )["total"]
     expense_count = expense_qs.count()
     flagged_count = expense_qs.exclude(budget_warning="").count()

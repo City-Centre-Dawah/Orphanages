@@ -2,7 +2,7 @@
 Seed data from workbook 01_Settings.
 
 Creates Organisation, Sites (Uganda, Gambia, Indonesia), BudgetCategories,
-FundingSources, ActivityTypes — as specified in Strategic Architecture Report.
+FundingSources, ProjectCategories — as specified in Strategic Architecture Report.
 """
 
 from decimal import Decimal
@@ -10,8 +10,8 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from core.models import ActivityType, BudgetCategory, FundingSource, Organisation, Site
-from expenses.models import Budget, ExchangeRate
+from core.models import BudgetCategory, FundingSource, Organisation, ProjectCategory, Site
+from expenses.models import ExchangeRate, SiteBudget
 
 # Workbook 01_Settings — 9 budget categories
 BUDGET_CATEGORIES = [
@@ -37,8 +37,8 @@ FUNDING_SOURCES = [
     "Other",
 ]
 
-# Workbook 01_Settings G4:G8 — 5 activity types
-ACTIVITY_TYPES = [
+# Workbook 01_Settings G4:G8 — 5 project categories
+PROJECT_CATEGORIES = [
     "Building Wells",
     "Donations for the Poor",
     "Masjid Support",
@@ -70,7 +70,7 @@ EXCHANGE_RATES = [
 
 
 class Command(BaseCommand):
-    help = "Seed Organisation, Sites, Categories, FundingSources, ActivityTypes from workbook"
+    help = "Seed Organisation, Sites, Categories, FundingSources, ProjectCategories from workbook"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -99,11 +99,11 @@ class Command(BaseCommand):
 
         if options["clear"]:
             ExchangeRate.objects.all().delete()
-            Budget.objects.filter(site__organisation=org).delete()
+            SiteBudget.objects.filter(site__organisation=org).delete()
             Site.objects.filter(organisation=org).delete()
             BudgetCategory.objects.filter(organisation=org).delete()
             FundingSource.objects.filter(organisation=org).delete()
-            ActivityType.objects.filter(organisation=org).delete()
+            ProjectCategory.objects.filter(organisation=org).delete()
             self.stdout.write("Cleared existing seeded data.")
 
         # Sites
@@ -138,21 +138,21 @@ class Command(BaseCommand):
             )
         self.stdout.write(f"  Funding sources: {len(FUNDING_SOURCES)}")
 
-        # Activity types
-        for i, name in enumerate(ACTIVITY_TYPES):
-            ActivityType.objects.get_or_create(
+        # Project categories
+        for i, name in enumerate(PROJECT_CATEGORIES):
+            ProjectCategory.objects.get_or_create(
                 organisation=org,
                 name=name,
                 defaults={"sort_order": i, "is_active": True},
             )
-        self.stdout.write(f"  Activity types: {len(ACTIVITY_TYPES)}")
+        self.stdout.write(f"  Project categories: {len(PROJECT_CATEGORIES)}")
 
         # Exchange rates (placeholder)
         today = date.today()
         for curr, rate in EXCHANGE_RATES:
             ExchangeRate.objects.get_or_create(
-                from_currency=curr,
-                to_currency="GBP",
+                local_currency=curr,
+                base_currency="GBP",
                 effective_date=today,
                 defaults={"rate": Decimal(rate), "source": "manual"},
             )

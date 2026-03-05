@@ -90,7 +90,7 @@ def _apply_sync_item(item):
         supplier=payload.get("supplier", "App")[:200],
         description=payload.get("description", "")[:500],
         payment_method=payload.get("payment_method", "cash"),
-        amount=amount,
+        amount_gbp=amount,
         amount_local=payload.get("amount_local") and Decimal(str(payload["amount_local"])) or None,
         local_currency=payload.get("local_currency", ""),
         notes=f"client_id:{client_id}",

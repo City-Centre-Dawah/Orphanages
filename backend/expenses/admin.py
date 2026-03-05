@@ -11,7 +11,7 @@ from import_export import fields, resources
 from import_export.admin import ExportMixin
 from unfold.admin import ModelAdmin
 
-from .models import Budget, ExchangeRate, Expense, ProjectBudget, ProjectExpense
+from .models import ExchangeRate, Expense, Project, ProjectBudget, ProjectExpense, SiteBudget
 
 
 # ---------------------------------------------------------------------------
@@ -32,7 +32,7 @@ class ExpenseResource(resources.ModelResource):
             "category_name",
             "supplier",
             "description",
-            "amount",
+            "amount_gbp",
             "amount_local",
             "local_currency",
             "exchange_rate_used",
@@ -56,12 +56,12 @@ class ExpenseResource(resources.ModelResource):
         return str(expense.created_by) if expense.created_by else ""
 
 
-class BudgetResource(resources.ModelResource):
+class SiteBudgetResource(resources.ModelResource):
     site_name = fields.Field(column_name="Site")
     category_name = fields.Field(column_name="Category")
 
     class Meta:
-        model = Budget
+        model = SiteBudget
         fields = [
             "id",
             "site_name",
@@ -83,9 +83,9 @@ class BudgetResource(resources.ModelResource):
 # Admin classes
 # ---------------------------------------------------------------------------
 
-@admin.register(Budget)
-class BudgetAdmin(ExportMixin, ModelAdmin):
-    resource_class = BudgetResource
+@admin.register(SiteBudget)
+class SiteBudgetAdmin(ExportMixin, ModelAdmin):
+    resource_class = SiteBudgetResource
     list_display = [
         "site",
         "category",
@@ -105,7 +105,7 @@ class BudgetAdmin(ExportMixin, ModelAdmin):
         return qs.annotate(
             actual_spend=Coalesce(
                 Sum(
-                    "category__expenses__amount",
+                    "category__expenses__amount_gbp",
                     filter=Q(
                         category__expenses__status__in=["logged", "reviewed"],
                         category__expenses__expense_date__year=F("financial_year"),
@@ -168,13 +168,13 @@ class ExpenseAdmin(ExportMixin, ModelAdmin):
         if obj.amount_local and obj.local_currency:
             return format_html(
                 "£{} <small>({} {})</small>",
-                obj.amount,
+                obj.amount_gbp,
                 obj.amount_local,
                 obj.local_currency,
             )
-        return format_html("£{}", obj.amount)
+        return format_html("£{}", obj.amount_gbp)
 
-    amount_display.short_description = "Amount"
+    amount_display.short_description = "Amount (GBP)"
 
     def budget_warning_display(self, obj):
         if obj.budget_warning == "over_100":
@@ -208,10 +208,26 @@ class ExpenseAdmin(ExportMixin, ModelAdmin):
         self.message_user(request, f"{updated} expense(s) flagged for query.")
 
 
+@admin.register(Project)
+class ProjectAdmin(ModelAdmin):
+    list_display = [
+        "name",
+        "site",
+        "category",
+        "status",
+        "budget_amount",
+        "start_date",
+        "end_date",
+    ]
+    list_filter = ["site", "category", "status"]
+    search_fields = ["name", "description"]
+    date_hierarchy = "start_date"
+
+
 @admin.register(ProjectBudget)
 class ProjectBudgetAdmin(ModelAdmin):
-    list_display = ["site", "activity_type", "financial_year", "annual_amount"]
-    list_filter = ["site", "financial_year", "activity_type"]
+    list_display = ["site", "project_category", "financial_year", "annual_amount"]
+    list_filter = ["site", "financial_year", "project_category"]
 
 
 @admin.register(ProjectExpense)
@@ -219,19 +235,20 @@ class ProjectExpenseAdmin(ModelAdmin):
     list_display = [
         "expense_date",
         "site",
-        "activity_type",
-        "country",
+        "project_category",
         "project",
-        "amount",
+        "country",
+        "project_name",
+        "amount_gbp",
         "status",
     ]
-    list_filter = ["site", "activity_type", "status"]
-    search_fields = ["supplier", "project", "country"]
+    list_filter = ["site", "project_category", "status", "project"]
+    search_fields = ["supplier", "project_name", "country"]
     date_hierarchy = "expense_date"
 
 
 @admin.register(ExchangeRate)
 class ExchangeRateAdmin(ModelAdmin):
-    list_display = ["from_currency", "to_currency", "rate", "effective_date", "source"]
-    list_filter = ["from_currency", "effective_date"]
+    list_display = ["local_currency", "base_currency", "rate", "effective_date", "source"]
+    list_filter = ["local_currency", "effective_date"]
     date_hierarchy = "effective_date"

@@ -64,7 +64,7 @@
                 <td>{{ e.expense_date|date:"d M" }}</td>
                 <td>{{ e.category.name }}</td>
                 <td>{{ e.description|truncatewords:8 }}</td>
-                <td class="text-right">&pound;{{ e.amount|floatformat:2 }}</td>
+                <td class="text-right">&pound;{{ e.amount_gbp|floatformat:2 }}</td>
                 <td class="text-right">{{ e.amount_local|floatformat:0|default:"—" }} {{ e.local_currency }}</td>
                 <td>{{ e.get_channel_display }}</td>
                 <td>{{ e.created_by|default:"—" }}</td>

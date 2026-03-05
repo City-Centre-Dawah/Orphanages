@@ -6,16 +6,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from api.serializers import (
-    ActivityTypeSerializer,
     BudgetCategorySerializer,
     ExpenseCreateSerializer,
     ExpenseSerializer,
     FundingSourceSerializer,
+    ProjectCategorySerializer,
+    ProjectSerializer,
     SiteSerializer,
     SyncQueueSerializer,
 )
-from core.models import ActivityType, BudgetCategory, FundingSource, Site
-from expenses.models import Expense
+from core.models import BudgetCategory, FundingSource, ProjectCategory, Site
+from expenses.models import Expense, Project
 
 
 class SiteViewSet(viewsets.ReadOnlyModelViewSet):
@@ -57,15 +58,15 @@ class FundingSourceViewSet(viewsets.ReadOnlyModelViewSet):
         return FundingSource.objects.none()
 
 
-class ActivityTypeViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = ActivityTypeSerializer
+class ProjectCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = ProjectCategorySerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
         if user.organisation_id:
-            return ActivityType.objects.filter(organisation=user.organisation, is_active=True)
-        return ActivityType.objects.none()
+            return ProjectCategory.objects.filter(organisation=user.organisation, is_active=True)
+        return ProjectCategory.objects.none()
 
 
 class ExpenseViewSet(viewsets.ModelViewSet):
@@ -105,6 +106,24 @@ class ExpenseViewSet(viewsets.ModelViewSet):
             ExpenseSerializer(expense).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class ProjectViewSet(viewsets.ReadOnlyModelViewSet):
+    """Projects the user can access."""
+
+    serializer_class = ProjectSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = Project.objects.select_related("site", "category")
+        if user.is_superuser:
+            return qs
+        if user.site_id:
+            return qs.filter(site=user.site)
+        if user.organisation_id:
+            return qs.filter(site__organisation=user.organisation)
+        return qs.none()
 
 
 class SyncViewSet(viewsets.ViewSet):

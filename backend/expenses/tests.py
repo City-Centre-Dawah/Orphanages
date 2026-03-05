@@ -36,14 +36,14 @@ class ExpenseModelTest(TestCase):
             category=self.category,
             expense_date=date.today(),
             supplier="Test Supplier",
-            amount=Decimal("50.00"),
+            amount_gbp=Decimal("50.00"),
             amount_local=Decimal("250000"),
             local_currency="UGX",
             payment_method="cash",
             channel="web",
             created_by=self.user,
         )
-        self.assertEqual(expense.amount, Decimal("50.00"))
+        self.assertEqual(expense.amount_gbp, Decimal("50.00"))
         self.assertEqual(expense.status, "logged")
 
 
@@ -52,10 +52,10 @@ class ExchangeRateModelTest(TestCase):
 
     def test_exchange_rate_creation(self):
         rate = ExchangeRate.objects.create(
-            from_currency="UGX",
-            to_currency="GBP",
+            local_currency="UGX",
+            base_currency="GBP",
             rate=Decimal("5000"),
             effective_date=date.today(),
         )
-        self.assertEqual(rate.from_currency, "UGX")
+        self.assertEqual(rate.local_currency, "UGX")
         self.assertEqual(float(rate.rate), 5000)
