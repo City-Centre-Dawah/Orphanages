@@ -22,12 +22,13 @@ class CoreConfig(AppConfig):
         try:
             from google_auth_oauthlib.flow import Flow
 
-            _original_init = Flow.__init__
+            _original_from_config = Flow.from_client_config.__func__
 
-            def _patched_init(self, *args, **kwargs):
+            @classmethod
+            def _patched_from_config(cls, client_config, scopes, **kwargs):
                 kwargs.setdefault("autogenerate_code_verifier", False)
-                _original_init(self, *args, **kwargs)
+                return _original_from_config(cls, client_config, scopes, **kwargs)
 
-            Flow.__init__ = _patched_init
-        except ImportError:
+            Flow.from_client_config = _patched_from_config
+        except (ImportError, AttributeError):
             pass
