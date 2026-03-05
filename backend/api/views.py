@@ -97,11 +97,21 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                 {"detail": "Already synced", "client_id": client_id},
                 status=status.HTTP_200_OK,
             )
+        # amount_gbp is read-only (server-computed), so set a placeholder
+        # that normalize_expense() will overwrite with the correct conversion.
+        amount_local = serializer.validated_data.get("amount_local")
         expense = serializer.save(
             created_by=request.user,
             channel="app",
             notes=f"client_id:{client_id}",
+            amount_gbp=amount_local or 0,
         )
+
+        # Apply currency conversion, freeze exchange rate, and check budget guardrails
+        from expenses.utils import normalize_expense
+        normalize_expense(expense)
+
+        expense.refresh_from_db()
         return Response(
             ExpenseSerializer(expense).data,
             status=status.HTTP_201_CREATED,

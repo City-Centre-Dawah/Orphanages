@@ -60,6 +60,13 @@ class ExpenseCreateSerializer(serializers.ModelSerializer):
     """For creating expenses from app with client_id for dedup."""
 
     client_id = serializers.CharField(write_only=True, required=True)
+    # Server always computes GBP amount and exchange rate via normalize_expense()
+    amount_gbp = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    exchange_rate_used = serializers.DecimalField(
+        max_digits=12, decimal_places=6, read_only=True
+    )
 
     class Meta:
         model = Expense
@@ -75,6 +82,7 @@ class ExpenseCreateSerializer(serializers.ModelSerializer):
             "amount_gbp",
             "amount_local",
             "local_currency",
+            "exchange_rate_used",
         ]
         extra_kwargs = {
             "funding_source": {"required": False},

@@ -99,6 +99,10 @@ def _apply_sync_item(item):
         created_by=user,
     )
 
+    # Apply currency conversion, freeze exchange rate, and check budget guardrails
+    from expenses.utils import normalize_expense
+    normalize_expense(expense)
+
     item.status = "applied"
     item.applied_at = timezone.now()
     item.record_id = str(expense.id)
