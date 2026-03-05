@@ -46,11 +46,15 @@ ACTIVITY_TYPES = [
     "Community Development",
 ]
 
-# Sites: Uganda, Gambia, Indonesia
+# Sites: Uganda, Gambia, Indonesia, Yemen, Bangladesh, USA, Zimbabwe
 SITES = [
     {"name": "Kampala Orphanage", "country": "Uganda", "city": "Kampala", "currency": "UGX"},
     {"name": "Banjul Orphanage", "country": "Gambia", "city": "Banjul", "currency": "GMD"},
     {"name": "Indonesia Orphanage", "country": "Indonesia", "city": "", "currency": "IDR"},
+    {"name": "Yemen Orphanage", "country": "Yemen", "city": "", "currency": "YER"},
+    {"name": "Bangladesh Orphanage", "country": "Bangladesh", "city": "", "currency": "BDT"},
+    {"name": "USA Orphanage", "country": "United States", "city": "", "currency": "USD"},
+    {"name": "Zimbabwe Orphanage", "country": "Zimbabwe", "city": "", "currency": "ZWL"},
 ]
 
 # Initial exchange rates (1 GBP = X local) — placeholders, update via API
@@ -58,6 +62,10 @@ EXCHANGE_RATES = [
     ("UGX", 5000),
     ("GMD", 75),
     ("IDR", 20000),
+    ("YER", 315),
+    ("BDT", 152),
+    ("USD", 1.27),
+    ("ZWL", 36200),
 ]
 
 

@@ -10,7 +10,7 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 # Currencies used across orphanage sites
-TARGET_CURRENCIES = ["UGX", "GMD", "IDR"]
+TARGET_CURRENCIES = ["UGX", "GMD", "IDR", "YER", "BDT", "USD", "ZWL"]
 
 
 @shared_task(name="expenses.update_exchange_rates")
