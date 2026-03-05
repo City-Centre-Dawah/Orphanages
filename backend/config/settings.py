@@ -66,6 +66,8 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 
 
 
@@ -258,6 +260,9 @@ UNFOLD = {
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": False,
     "SITE_LOGO": "/static/img/ccd-logo-red.svg",
+    "SITE_FAVICONS": [
+        {"rel": "icon", "sizes": "any", "href": "/static/img/favicon.svg", "type": "image/svg+xml"},
+    ],
     "COLORS": {
         "primary": {
             "50": "#fdf2f2",
