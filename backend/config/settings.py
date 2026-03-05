@@ -306,9 +306,9 @@ UNFOLD = {
                         "link": "/admin/expenses/expense/",
                     },
                     {
-                        "title": "Budgets",
+                        "title": "Site Budgets",
                         "icon": "savings",
-                        "link": "/admin/expenses/budget/",
+                        "link": "/admin/expenses/sitebudget/",
                     },
                     {
                         "title": "Exchange Rates",
@@ -356,9 +356,9 @@ UNFOLD = {
                         "link": "/admin/core/fundingsource/",
                     },
                     {
-                        "title": "Activity Types",
+                        "title": "Project Categories",
                         "icon": "local_activity",
-                        "link": "/admin/core/activitytype/",
+                        "link": "/admin/core/projectcategory/",
                     },
                 ],
             },
