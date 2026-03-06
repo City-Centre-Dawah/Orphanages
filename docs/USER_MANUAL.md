@@ -102,6 +102,7 @@ Category Amount Description
 - **Amount** must be the second word (numbers only, no currency symbol)
 - **Description** is optional — everything after the amount
 - Commas in amounts are accepted: `Food 50,000 rice` works
+- **Always enter amounts in your local currency** (UGX, GMD, or IDR) — the system automatically converts to GBP using the current exchange rate. You do not need to calculate or type the GBP amount yourself.
 
 ### 3.2 Expense Categories
 
@@ -183,16 +184,18 @@ After sending an expense, the bot replies with a confirmation:
 
 **Successful expense:**
 ```
-Logged: Food 50000 UGX (10.00 GBP)
-Ref: 142
-Receipt: attached
+*Expense Logged* #142
+
+*Category:* Food
+*Amount:* 50000 UGX (10.00 GBP)
+*Receipt:* attached
 ```
 
 This tells you:
-- **Logged** — the expense was saved
-- **Food 50000 UGX** — category, local amount, and currency
-- **(10.00 GBP)** — converted amount in British Pounds
-- **Ref: 142** — unique reference number (save this if you need to query later)
+- **Expense Logged** — the expense was saved
+- **#142** — unique reference number (save this if you need to query later)
+- **Category: Food** — what budget category it was filed under
+- **Amount: 50000 UGX (10.00 GBP)** — local amount and converted GBP value
 - **Receipt: attached** (or "none" if no photo was sent)
 
 **Error — invalid format:**
@@ -228,17 +231,21 @@ When your expense pushes a category's annual budget past a threshold, you will s
 
 **At 80% of budget:**
 ```
-Logged: Food 50000 UGX (10.00 GBP)
-Ref: 143
-Receipt: none
+*Expense Logged* #143
+
+*Category:* Food
+*Amount:* 50000 UGX (10.00 GBP)
+*Receipt:* none
 ⚠ Budget alert: Food is at 83% (£340.00 remaining of £2,000.00)
 ```
 
 **At 100% (budget exceeded):**
 ```
-Logged: Food 50000 UGX (10.00 GBP)
-Ref: 144
-Receipt: none
+*Expense Logged* #144
+
+*Category:* Food
+*Amount:* 50000 UGX (10.00 GBP)
+*Receipt:* none
 ⚠ BUDGET EXCEEDED: Food is at 105% (£2,100.00 of £2,000.00)
 ```
 
@@ -263,7 +270,7 @@ Receipt: none
 
 1. Open your browser and go to the system URL provided by your admin (e.g. `https://orphanages.ccdawah.org/admin/`)
 2. Log in with your username and password
-3. Alternatively, click **"Sign in with Google"** if your admin has set up Google OAuth. This is available for `@ccdawah.org` email accounts only. Note: your Django user account must already exist — Google SSO does not auto-create users.
+3. Alternatively, click **"Sign in with Google"** if your admin has set up Google OAuth. This is available for `@ccdawah.org` email accounts only. New users with a valid `@ccdawah.org` Google account are auto-provisioned on first login.
 
 <!-- SCREENSHOT: Admin login page with Google OAuth button -->
 
@@ -401,7 +408,7 @@ The Site budget list shows actual spend, remaining, and % used columns. These ar
    - **Organisation** — select "City Centre Dawah"
    - **Site** — assign to the correct orphanage
    - **Role** — select the appropriate role (caretaker, site_manager, admin, viewer)
-   - **Phone** — the caretaker's WhatsApp number (international format, e.g. `+256701234567`)
+   - **Phone** — the caretaker's WhatsApp number in E.164 format without the `+` prefix (e.g. `256701234567`)
    - **Telegram username** — without the @ symbol (e.g. `john_kampala`)
    - **Telegram ID** — numeric ID (optional, filled automatically after first message)
 4. Click **Save**
@@ -410,10 +417,10 @@ The Site budget list shows actual spend, remaining, and % used columns. These ar
 
 > **Critical for messaging:** A caretaker cannot submit expenses via WhatsApp unless their phone number is entered. They cannot submit via Telegram unless their telegram_username is entered.
 
-**Phone number format:** Always use full international format including country code:
-- Uganda: `+256...`
-- Gambia: `+220...`
-- Indonesia: `+62...`
+**Phone number format:** Use E.164 digits without the `+` prefix (this matches how Meta Cloud API sends phone numbers):
+- Uganda: `256...` (e.g. `256701234567`)
+- Gambia: `220...` (e.g. `2201234567`)
+- Indonesia: `62...` (e.g. `628123456789`)
 
 ### 5.6 Managing Categories and Funding Sources
 
@@ -453,7 +460,7 @@ Exchange rates convert local currency amounts to GBP. The system uses the most r
 | GMD | Gambia | 1 GBP = ~75 GMD |
 | IDR | Indonesia | 1 GBP = ~20,000 IDR |
 
-> **Important:** If no exchange rate exists for a currency, expenses will be recorded at 1:1 (no conversion). Always ensure rates are up to date.
+> **Important:** If no exchange rate exists for a currency, the expense will be **rejected** and the caretaker will receive an error message asking them to contact their admin. Always ensure rates are up to date before caretakers begin logging expenses.
 
 ### 5.8 Viewing Message Logs
 
@@ -461,7 +468,7 @@ Every incoming message is stored in its raw form for audit purposes.
 
 **WhatsApp messages:**
 - Go to **Webhooks → WhatsApp incoming messages**
-- Shows message SID, sender number, body, media URL, and processing timestamp
+- Shows message ID (Meta's `wamid`), sender number, body, media URL, and processing timestamp
 
 **Telegram messages:**
 - Go to **Webhooks → Telegram incoming messages**
@@ -590,6 +597,7 @@ A REST API exists for the planned Flutter mobile app. It uses token authenticati
 | "No categories configured" | System configuration issue | Contact your admin |
 | Wrong category matched | Typo was close to wrong category | Resend with the exact category name |
 | Amount shows wrong GBP value | Exchange rate may be outdated | Your admin should update exchange rates |
+| "No exchange rate found" error | No rate configured for your currency | Contact your admin to add an exchange rate before logging expenses |
 | No budget warning when expected | Budget may not be set for this category/year | Ask your admin to check budget configuration |
 
 ### For Administrators
