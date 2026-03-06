@@ -7,11 +7,51 @@ FundingSources, ProjectCategories — as specified in Strategic Architecture Rep
 
 from decimal import Decimal
 
+from django.contrib.auth.models import Group, Permission
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from core.models import BudgetCategory, FundingSource, Organisation, ProjectCategory, Site
 from expenses.models import ExchangeRate, SiteBudget
+
+# Django permission groups — maps role to model permissions
+# Format: (app_label, model_name, [codenames without prefix])
+ADMIN_GROUP_PERMS = [
+    # Core models — full CRUD
+    ("core", "organisation", ["view", "add", "change", "delete"]),
+    ("core", "site", ["view", "add", "change", "delete"]),
+    ("core", "user", ["view", "add", "change"]),  # no delete — deactivate instead
+    ("core", "budgetcategory", ["view", "add", "change", "delete"]),
+    ("core", "fundingsource", ["view", "add", "change", "delete"]),
+    ("core", "projectcategory", ["view", "add", "change", "delete"]),
+    ("core", "auditlog", ["view"]),
+    ("core", "syncqueue", ["view"]),
+    # Expense models — full CRUD
+    ("expenses", "expense", ["view", "add", "change", "delete"]),
+    ("expenses", "sitebudget", ["view", "add", "change", "delete"]),
+    ("expenses", "project", ["view", "add", "change", "delete"]),
+    ("expenses", "projectbudget", ["view", "add", "change", "delete"]),
+    ("expenses", "projectexpense", ["view", "add", "change", "delete"]),
+    ("expenses", "exchangerate", ["view", "add", "change", "delete"]),
+    # Webhook messages — view only
+    ("webhooks", "whatsappincomingmessage", ["view"]),
+    ("webhooks", "telegramincomingmessage", ["view"]),
+]
+
+SITE_MANAGER_GROUP_PERMS = [
+    # Can view/add/change expenses at their site (queryset filtering enforced in admin)
+    ("expenses", "expense", ["view", "add", "change"]),
+    ("expenses", "projectexpense", ["view", "add", "change"]),
+    # View-only for reference data
+    ("expenses", "sitebudget", ["view"]),
+    ("expenses", "project", ["view"]),
+    ("expenses", "projectbudget", ["view"]),
+    ("expenses", "exchangerate", ["view"]),
+    ("core", "site", ["view"]),
+    ("core", "budgetcategory", ["view"]),
+    ("core", "fundingsource", ["view"]),
+    ("core", "projectcategory", ["view"]),
+]
 
 # Workbook 01_Settings — 9 budget categories
 BUDGET_CATEGORIES = [
@@ -158,4 +198,28 @@ class Command(BaseCommand):
             )
         self.stdout.write(f"  Exchange rates: {len(EXCHANGE_RATES)}")
 
+        # Permission groups
+        self._create_group("Admin", ADMIN_GROUP_PERMS)
+        self._create_group("Site Manager", SITE_MANAGER_GROUP_PERMS)
+        self.stdout.write("  Permission groups: Admin, Site Manager")
+
         self.stdout.write(self.style.SUCCESS("Seed data complete."))
+
+    def _create_group(self, name, perm_specs):
+        """Create or update a Django Group with the specified permissions."""
+        group, _ = Group.objects.get_or_create(name=name)
+        perms = []
+        for app_label, model_name, actions in perm_specs:
+            for action in actions:
+                codename = f"{action}_{model_name}"
+                try:
+                    perm = Permission.objects.get(
+                        content_type__app_label=app_label,
+                        codename=codename,
+                    )
+                    perms.append(perm)
+                except Permission.DoesNotExist:
+                    self.stderr.write(
+                        self.style.WARNING(f"  Permission not found: {app_label}.{codename}")
+                    )
+        group.permissions.set(perms)

@@ -102,6 +102,9 @@ class SiteBudgetAdmin(ExportMixin, ModelAdmin):
         from django.db.models import Value
 
         qs = super().get_queryset(request)
+        # Site managers only see their own site's budgets
+        if not request.user.is_superuser and hasattr(request.user, "site") and request.user.site:
+            qs = qs.filter(site=request.user.site)
         return qs.annotate(
             actual_spend=Coalesce(
                 Sum(
@@ -164,6 +167,12 @@ class ExpenseAdmin(ExportMixin, ModelAdmin):
     readonly_fields = ["created_at", "reviewed_at", "exchange_rate_used", "budget_warning"]
     actions = ["mark_reviewed", "mark_queried"]
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if not request.user.is_superuser and hasattr(request.user, "site") and request.user.site:
+            qs = qs.filter(site=request.user.site)
+        return qs
+
     def amount_display(self, obj):
         if obj.amount_local and obj.local_currency:
             return format_html(
@@ -223,6 +232,12 @@ class ProjectAdmin(ModelAdmin):
     search_fields = ["name", "description"]
     date_hierarchy = "start_date"
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if not request.user.is_superuser and hasattr(request.user, "site") and request.user.site:
+            qs = qs.filter(site=request.user.site)
+        return qs
+
 
 @admin.register(ProjectBudget)
 class ProjectBudgetAdmin(ModelAdmin):
@@ -245,6 +260,12 @@ class ProjectExpenseAdmin(ModelAdmin):
     list_filter = ["site", "project_category", "status", "project"]
     search_fields = ["supplier", "project_name", "country"]
     date_hierarchy = "expense_date"
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if not request.user.is_superuser and hasattr(request.user, "site") and request.user.site:
+            qs = qs.filter(site=request.user.site)
+        return qs
 
 
 @admin.register(ExchangeRate)
