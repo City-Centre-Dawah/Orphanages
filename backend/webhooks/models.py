@@ -1,6 +1,6 @@
 """
 Webhook models — store raw incoming messages for processing and audit.
-Supports WhatsApp (Twilio) and Telegram Bot API channels.
+Supports WhatsApp (Meta Cloud API) and Telegram Bot API channels.
 """
 
 from django.db import models
@@ -8,8 +8,9 @@ from django.db import models
 
 class WhatsAppIncomingMessage(models.Model):
     """
-    Raw incoming message from Twilio webhook.
+    Raw incoming message from WhatsApp Cloud API webhook.
     Stored before Celery processes it — allows replay on failure.
+    message_sid stores Meta's message ID (wamid.*) for idempotency.
     """
 
     message_sid = models.CharField(max_length=50, unique=True, db_index=True)

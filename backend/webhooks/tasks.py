@@ -3,7 +3,7 @@ Celery tasks for webhook processing.
 
 Parse incoming message (e.g. "Food 50000 rice Kalerwe"), resolve category
 (with fuzzy matching), convert currency, create Expense, fetch receipt photo.
-Supports WhatsApp (Twilio) and Telegram Bot API channels.
+Supports WhatsApp (Meta Cloud API) and Telegram Bot API channels.
 """
 
 import difflib
@@ -213,7 +213,12 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
     receipt_file = None
     if media_url:
         try:
-            resp = http_requests.get(media_url, timeout=10)
+            # Meta media URLs require Bearer token; Telegram URLs are public
+            headers = {}
+            if "graph.facebook.com" in media_url:
+                from django.conf import settings as django_settings
+                headers["Authorization"] = f"Bearer {django_settings.WHATSAPP_ACCESS_TOKEN}"
+            resp = http_requests.get(media_url, headers=headers, timeout=10)
             if resp.status_code == 200:
                 filename = f"{channel}_{message_ref}.jpg"
                 receipt_file = ContentFile(resp.content, name=filename)
@@ -365,25 +370,30 @@ def process_whatsapp_message(
     self,
     message_sid,
     from_number,
-    to_number,
     body,
-    media_url="",
+    media_id="",
     raw_post=None,
 ):
     """
-    Process incoming WhatsApp message and create Expense if valid.
+    Process incoming WhatsApp message (Meta Cloud API) and create Expense if valid.
     Expected format: "Category Amount [description]"
     """
     from webhooks.models import WhatsAppIncomingMessage
+    from webhooks.whatsapp_reply import get_whatsapp_media_url
 
     raw_post = raw_post or {}
+
+    # Resolve media URL from Meta media_id (requires Graph API call)
+    media_url = ""
+    if media_id:
+        media_url = get_whatsapp_media_url(media_id)
 
     # Store raw message for audit
     msg, created = WhatsAppIncomingMessage.objects.update_or_create(
         message_sid=message_sid,
         defaults={
             "from_number": from_number,
-            "to_number": to_number,
+            "to_number": "",
             "body": body,
             "media_url": media_url,
             "raw_payload": raw_post,
@@ -395,7 +405,7 @@ def process_whatsapp_message(
         return
 
     def _reply(text):
-        send_whatsapp_reply(to_number, from_number, text)
+        send_whatsapp_reply(from_number, text)
 
     expense = _parse_and_create_expense(
         body=body,

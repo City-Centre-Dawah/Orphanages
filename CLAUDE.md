@@ -256,7 +256,7 @@ These are areas where the codebase is incomplete or needs attention:
 4. **Limited test coverage** — Tests exist in `core/tests.py`, `expenses/tests.py`, `webhooks/tests.py`, and `api/tests.py`, but there are no integration tests with real messaging providers (Meta WhatsApp, Telegram).
 5. **No CI linting** — `ruff` and `black` in requirements but not enforced via CI.
 6. **No Celery task-level idempotency** — Idempotency is enforced at Redis and DB-in-view layers, but not at the Celery task entry point. If a task is manually retried (e.g. via Flower), duplicate expenses could be created.
-10. **Webhook signatures enforced in production** — WhatsApp (`TWILIO_AUTH_TOKEN`) and Telegram (`TELEGRAM_WEBHOOK_SECRET`) signature verification is mandatory when `DEBUG=False`. In dev mode, requests are accepted without signatures for testing convenience.
+10. **Webhook signatures enforced in production** — WhatsApp (`WHATSAPP_APP_SECRET` via HMAC-SHA256) and Telegram (`TELEGRAM_WEBHOOK_SECRET`) signature verification is mandatory when `DEBUG=False`. In dev mode, requests are accepted without signatures for testing convenience.
 11. **Amount validation** — Webhook expense parsing rejects negative, zero, scientific notation, and amounts > 100M local currency. Plain decimal numbers only.
 7. **`funding_source` optional** — The FK exists on Expense and is seeded, but webhook-created expenses always set it to `None`. Available for admin-only manual entry; not part of the caretaker workflow.
 8. **`payment_method` defaults to cash** — Webhook-created expenses default to `"cash"`. Other methods (`bank_transfer`, `debit_card`) are available for admin/API entry only.
