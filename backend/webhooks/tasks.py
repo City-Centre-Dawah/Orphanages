@@ -118,14 +118,39 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
         return None
 
     category_name = parts[0]
+    raw_amount = parts[1].replace(",", "")
+
+    # Reject scientific notation (e.g. "1e5", "2E3") — require plain numbers only
+    if "e" in raw_amount.lower():
+        logger.warning("Scientific notation rejected: %s", raw_amount)
+        reply_fn(
+            f"Please use plain numbers, not scientific notation.\n"
+            f"Example: Food 50000 rice Kalerwe"
+        )
+        return None
+
     try:
-        amount_local = Decimal(parts[1].replace(",", ""))
+        amount_local = Decimal(raw_amount)
     except (ValueError, InvalidOperation):
         logger.warning("Invalid amount in message: %s", body[:50])
         reply_fn(
             f"Amount must be a number.\n"
             f"Example: Food 50000 rice Kalerwe\n"
             f"You sent: {body[:100]}"
+        )
+        return None
+
+    # Reject zero, negative, and unreasonably large amounts
+    if amount_local <= 0:
+        logger.warning("Non-positive amount rejected: %s", amount_local)
+        reply_fn("Amount must be greater than zero.")
+        return None
+
+    if amount_local > Decimal("100000000"):
+        logger.warning("Unreasonably large amount rejected: %s", amount_local)
+        reply_fn(
+            f"Amount {amount_local:,} seems too large.\n"
+            f"Please check and resend."
         )
         return None
 
@@ -177,7 +202,12 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
             amount_gbp = amount_local / rate.rate
             exchange_rate_used = rate.rate
         else:
-            logger.warning("No exchange rate for %s, using 1:1", local_currency)
+            logger.error("No exchange rate for %s — rejecting expense", local_currency)
+            reply_fn(
+                f"No exchange rate found for {local_currency}.\n"
+                f"Contact your admin to update exchange rates before logging expenses."
+            )
+            return None
 
     # --- Fetch receipt photo ---
     receipt_file = None

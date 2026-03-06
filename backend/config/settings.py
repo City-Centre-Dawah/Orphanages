@@ -9,6 +9,7 @@ from pathlib import Path
 
 import environ
 import os
+import sentry_sdk
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,6 +30,7 @@ env = environ.Env(
     TELEGRAM_BOT_TOKEN=(str, ""),
     TELEGRAM_WEBHOOK_SECRET=(str, ""),
     EXCHANGE_RATE_API_KEY=(str, ""),
+    SENTRY_DSN=(str, ""),
     GOOGLE_OAUTH_CLIENT_ID=(str, ""),
     GOOGLE_OAUTH_CLIENT_SECRET=(str, ""),
     # DO Spaces (S3-compatible) — leave empty for local filesystem
@@ -189,7 +191,7 @@ if USE_SPACES and env("AWS_ACCESS_KEY_ID") and env("AWS_STORAGE_BUCKET_NAME"):
      	 	"location": "media",
         	"file_overwrite": False,
         	"default_acl": None,
-        	"querystring_auth": False,
+        	"querystring_auth": True,
                 "object_parameters": {"CacheControl": "max-age=86400"},
             },
         },
@@ -441,3 +443,14 @@ CELERY_BEAT_SCHEDULE = {
 
 # Exchange Rate API
 EXCHANGE_RATE_API_KEY = env("EXCHANGE_RATE_API_KEY", default="")
+
+# Sentry error monitoring
+SENTRY_DSN = env("SENTRY_DSN", default="")
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment="production" if not DEBUG else "development",
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.1,
+        send_default_pii=False,
+    )

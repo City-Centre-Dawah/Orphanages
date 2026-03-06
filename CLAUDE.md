@@ -20,6 +20,7 @@ Expense management system for City Centre Dawah's orphanages in Uganda, Gambia, 
 - **Admin theme:** django-unfold with CCD brand identity (`#982b2e` maroon)
 - **Admin SSO:** django-google-sso (Google OAuth2, restricted to `@ccdawah.org`)
 - **Static files:** WhiteNoise (compressed static serving in production)
+- **Monitoring:** Sentry SDK (error tracking, performance monitoring)
 - **Import/export:** django-import-export (bulk data operations in admin)
 - **Config management:** django-environ (reads `.env`)
 - **Package manager:** pip with `requirements.txt`
@@ -192,6 +193,7 @@ All config is loaded from `.env` at the repo root (not `backend/`). See `.env.ex
 | `GOOGLE_SSO_PROJECT_ID` | For Google SSO | Google Cloud project ID |
 | `AFRICAS_TALKING_USERNAME` | For SMS | Africa's Talking username (default: `sandbox`) |
 | `AFRICAS_TALKING_API_KEY` | For SMS | Africa's Talking API key |
+| `SENTRY_DSN` | For monitoring | Sentry error tracking DSN |
 | `USE_SPACES` | For prod media | Enable DigitalOcean Spaces storage |
 
 ## Development Notes
@@ -254,6 +256,8 @@ These are areas where the codebase is incomplete or needs attention:
 4. **Limited test coverage** — Tests exist in `core/tests.py`, `expenses/tests.py`, `webhooks/tests.py`, and `api/tests.py`, but there are no integration tests with real messaging providers (Meta WhatsApp, Telegram).
 5. **No CI linting** — `ruff` and `black` in requirements but not enforced via CI.
 6. **No Celery task-level idempotency** — Idempotency is enforced at Redis and DB-in-view layers, but not at the Celery task entry point. If a task is manually retried (e.g. via Flower), duplicate expenses could be created.
+10. **Webhook signatures enforced in production** — WhatsApp (`TWILIO_AUTH_TOKEN`) and Telegram (`TELEGRAM_WEBHOOK_SECRET`) signature verification is mandatory when `DEBUG=False`. In dev mode, requests are accepted without signatures for testing convenience.
+11. **Amount validation** — Webhook expense parsing rejects negative, zero, scientific notation, and amounts > 100M local currency. Plain decimal numbers only.
 7. **`funding_source` optional** — The FK exists on Expense and is seeded, but webhook-created expenses always set it to `None`. Available for admin-only manual entry; not part of the caretaker workflow.
 8. **`payment_method` defaults to cash** — Webhook-created expenses default to `"cash"`. Other methods (`bank_transfer`, `debit_card`) are available for admin/API entry only.
 9. **`"web"` / `"paper"` channels** — These channel choices exist for manual admin data entry (e.g. migrating paper records). No automated code path creates expenses with these channels.

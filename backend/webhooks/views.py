@@ -37,14 +37,19 @@ def whatsapp_webhook(request):
         logger.error("Twilio or Celery not configured")
         return HttpResponse("Server configuration error", status=503)
 
-    signature = request.headers.get("X-Twilio-Signature", "")
+    # In production, TWILIO_AUTH_TOKEN must be set — reject all requests without it
+    if not settings.TWILIO_AUTH_TOKEN:
+        if not settings.DEBUG:
+            logger.error("WhatsApp webhook: TWILIO_AUTH_TOKEN not configured in production")
+            return HttpResponse("Server configuration error", status=503)
+        # In dev (DEBUG=True), allow unauthenticated requests for testing
+        logger.warning("WhatsApp webhook: no auth token configured (dev mode)")
+    else:
+        signature = request.headers.get("X-Twilio-Signature", "")
+        if not signature:
+            logger.warning("WhatsApp webhook: missing signature")
+            return HttpResponse("Forbidden", status=403)
 
-    if settings.TWILIO_AUTH_TOKEN and not signature:
-        logger.warning("WhatsApp webhook: missing signature")
-        return HttpResponse("Forbidden", status=403)
-
-    # Validate signature if we have auth token (skip in dev when token not set)
-    if signature and settings.TWILIO_AUTH_TOKEN:
         validator = RequestValidator(settings.TWILIO_AUTH_TOKEN)
         url = request.build_absolute_uri(request.get_full_path())
         if not validator.validate(url, dict(request.POST), signature):
