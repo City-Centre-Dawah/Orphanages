@@ -4,7 +4,7 @@ Google SSO callbacks for auto-provisioning users.
 Domain-based role assignment:
   @ccdawah.com             -> superuser + admin (UK leadership)
   @ccdawah.org             -> staff admin (UK office)
-  @orphanages.ccdawah.org  -> caretaker, no admin access (on-ground staff)
+  @orphanages.ccdawah.org  -> site_manager, admin access (on-ground site managers)
 """
 
 import logging
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 DOMAIN_ROLE_MAP = {
     "ccdawah.com": ("admin", True, True),
     "ccdawah.org": ("admin", True, False),
-    "orphanages.ccdawah.org": ("caretaker", False, False),
+    "orphanages.ccdawah.org": ("site_manager", True, False),
 }
 
 
