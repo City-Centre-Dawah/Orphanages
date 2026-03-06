@@ -242,7 +242,9 @@ def _check_budget_guardrail(expense, reply_fn):
         # No budget set — nothing to check
         return ""
 
-    # Sum all expenses for this site/category/year (including the new one)
+    # Sum all expenses for this site/category/year (including the new one).
+    # Only "logged" and "reviewed" count — "queried" expenses are excluded
+    # because they are under question and shouldn't count toward spend.
     total_spend = (
         Expense.objects.filter(
             site=site,

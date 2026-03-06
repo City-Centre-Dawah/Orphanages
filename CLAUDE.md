@@ -129,13 +129,13 @@ Both webhook endpoints (`/webhooks/whatsapp/` and `/webhooks/telegram/`) return 
 Webhook views validate, deduplicate (Redis + DB), and queue Celery tasks. Two-layer idempotency: Redis (fast, 24h TTL) and DB check in view (durable). Rate-limited at 60 req/min per IP via `django-ratelimit`.
 
 ### Google OAuth SSO
-Admin login supports Google OAuth2 via `django-google-sso`. Restricted to `@ccdawah.org` domain. Configured with `GOOGLE_SSO_AUTO_CREATE_USERS = False` so only pre-existing Django users can log in. Callback URL: `/google_sso/callback/`.
+Admin login supports Google OAuth2 via `django-google-sso`. Restricted to `@ccdawah.org` domain. Configured with `GOOGLE_SSO_AUTO_CREATE_USERS = True` so users with a valid `@ccdawah.org` Google account are auto-provisioned on first login. Callback URL: `/google_sso/callback/`.
 
 ### Offline-first sync
 `api/views.py` provides a `SyncViewSet` that accepts queued changes from the mobile app. `SyncQueue` model stores pending inserts/updates for conflict resolution.
 
 ### Audit trail
-Django signals (`core/signals.py`) log all model saves to `AuditLog` with user, table, record ID, and action (CREATE/UPDATE).
+Django signals (`core/signals.py`) log all model saves to `AuditLog` with user, table, record ID, action (CREATE/UPDATE), and a JSON diff of changed fields for UPDATE actions. The diff captures `{field: {old, new}}` for each modified field, excluding sensitive fields like `password` and `last_login`.
 
 ### Project tracking
 The `Project` model allows tracking one-off or recurring initiatives (e.g. "Ramadan Food Packs 2026", "Emergency Flood Relief Bangladesh"). Each project has a site, project category, budget, timeline, and lifecycle status (planned → active → completed/cancelled). `ProjectExpense` records can optionally link to a `Project` for per-initiative spend tracking.
@@ -183,7 +183,6 @@ All config is loaded from `.env` at the repo root (not `backend/`). See `.env.ex
 | `CELERY_BROKER_URL` | No (default: localhost) | Redis for Celery broker |
 | `TWILIO_ACCOUNT_SID` | For WhatsApp | Twilio account identifier |
 | `TWILIO_AUTH_TOKEN` | For WhatsApp | Twilio signature validation (skipped if empty in dev) |
-| `TWILIO_WHATSAPP_WEBHOOK_TOKEN` | For WhatsApp | Custom webhook validation token |
 | `TELEGRAM_BOT_TOKEN` | For Telegram | Bot token from @BotFather |
 | `TELEGRAM_WEBHOOK_SECRET` | For Telegram | Secret token for webhook validation |
 | `GOOGLE_OAUTH_CLIENT_ID` | For Google SSO | Google Cloud OAuth2 client ID |
@@ -248,11 +247,14 @@ All model and field names follow these principles for DB clarity:
 These are areas where the codebase is incomplete or needs attention:
 
 1. **No CI/CD** — No GitHub Actions. Deployment is manual via SSH (see `docs/DEPLOYMENT.md`).
-2. **SyncQueue unused** — Model exists for Phase 2 offline-first mobile sync, not wired up yet.
+2. **SyncQueue incomplete** — Model exists for Phase 2 offline-first mobile sync. Only `table_name=="expense"` with `action=="insert"` is implemented; "update" actions, other tables, and "conflict" resolution are not yet wired up.
 3. **No ASGI** — Uses WSGI (Gunicorn). If WebSocket support is needed later, switch to ASGI.
 4. **Limited test coverage** — Tests exist in `core/tests.py`, `expenses/tests.py`, `webhooks/tests.py`, and `api/tests.py`, but there are no integration tests with real messaging providers (Twilio, Telegram).
 5. **No CI linting** — `ruff` and `black` in requirements but not enforced via CI.
 6. **No Celery task-level idempotency** — Idempotency is enforced at Redis and DB-in-view layers, but not at the Celery task entry point. If a task is manually retried (e.g. via Flower), duplicate expenses could be created.
+7. **`funding_source` optional** — The FK exists on Expense and is seeded, but webhook-created expenses always set it to `None`. Available for admin-only manual entry; not part of the caretaker workflow.
+8. **`payment_method` defaults to cash** — Webhook-created expenses default to `"cash"`. Other methods (`bank_transfer`, `debit_card`) are available for admin/API entry only.
+9. **`"web"` / `"paper"` channels** — These channel choices exist for manual admin data entry (e.g. migrating paper records). No automated code path creates expenses with these channels.
 
 ## Production Architecture
 

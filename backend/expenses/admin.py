@@ -41,6 +41,8 @@ class ExpenseResource(resources.ModelResource):
             "channel",
             "budget_warning",
             "created_by_name",
+            "reviewed_by",
+            "reviewed_at",
             "created_at",
             "notes",
         ]
