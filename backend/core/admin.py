@@ -66,6 +66,20 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
         ),
     )
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        # Non-superuser admins can see everyone except superusers
+        return qs.filter(is_superuser=False)
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        if not request.user.is_superuser:
+            # Non-superusers cannot escalate privileges
+            readonly.extend(["is_superuser", "is_staff", "user_permissions", "groups"])
+        return readonly
+
 
 @admin.register(BudgetCategory)
 class BudgetCategoryAdmin(ModelAdmin):
