@@ -412,6 +412,11 @@ UNFOLD = {
                         "icon": "sync",
                         "link": "/admin/core/syncqueue/",
                     },
+                    {
+                        "title": "Error Tracking",
+                        "icon": "bug_report",
+                        "link": "https://city-centre-dawah.sentry.io",
+                    },
                 ],
             },
         ],
