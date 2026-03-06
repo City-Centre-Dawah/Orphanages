@@ -102,6 +102,7 @@ Category Amount Description
 - **Amount** must be the second word (numbers only, no currency symbol)
 - **Description** is optional — everything after the amount
 - Commas in amounts are accepted: `Food 50,000 rice` works
+- **Always enter amounts in your local currency** (UGX, GMD, or IDR) — the system automatically converts to GBP using the current exchange rate. You do not need to calculate or type the GBP amount yourself.
 
 ### 3.2 Expense Categories
 
@@ -459,7 +460,7 @@ Exchange rates convert local currency amounts to GBP. The system uses the most r
 | GMD | Gambia | 1 GBP = ~75 GMD |
 | IDR | Indonesia | 1 GBP = ~20,000 IDR |
 
-> **Important:** If no exchange rate exists for a currency, expenses will be recorded at 1:1 (no conversion). Always ensure rates are up to date.
+> **Important:** If no exchange rate exists for a currency, the expense will be **rejected** and the caretaker will receive an error message asking them to contact their admin. Always ensure rates are up to date before caretakers begin logging expenses.
 
 ### 5.8 Viewing Message Logs
 
@@ -596,6 +597,7 @@ A REST API exists for the planned Flutter mobile app. It uses token authenticati
 | "No categories configured" | System configuration issue | Contact your admin |
 | Wrong category matched | Typo was close to wrong category | Resend with the exact category name |
 | Amount shows wrong GBP value | Exchange rate may be outdated | Your admin should update exchange rates |
+| "No exchange rate found" error | No rate configured for your currency | Contact your admin to add an exchange rate before logging expenses |
 | No budget warning when expected | Budget may not be set for this category/year | Ask your admin to check budget configuration |
 
 ### For Administrators
