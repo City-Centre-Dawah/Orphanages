@@ -9,7 +9,6 @@ from pathlib import Path
 
 import environ
 import os
-import sentry_sdk
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -452,6 +451,7 @@ EXCHANGE_RATE_API_KEY = env("EXCHANGE_RATE_API_KEY", default="")
 # Sentry error monitoring
 SENTRY_DSN = env("SENTRY_DSN", default="")
 if SENTRY_DSN:
+    import sentry_sdk
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         environment="production" if not DEBUG else "development",
