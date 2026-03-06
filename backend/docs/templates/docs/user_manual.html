@@ -1,0 +1,454 @@
+{% extends "docs/base_docs.html" %}
+{% block title %}User Manual{% endblock %}
+{% block nav_manual %}active{% endblock %}
+
+{% block sidebar %}
+<h3>Overview</h3>
+<a href="#overview">Overview</a>
+<a href="#user-roles">User Roles</a>
+
+<h3>For Caretakers</h3>
+<a href="#message-format">Message Format</a>
+<a href="#categories">Expense Categories</a>
+<a href="#whatsapp">Sending via WhatsApp</a>
+<a href="#telegram">Sending via Telegram</a>
+<a href="#receipts">Attaching Receipts</a>
+<a href="#replies">Understanding Replies</a>
+<a href="#budget-warnings">Budget Warnings</a>
+<a href="#common-mistakes">Common Mistakes</a>
+
+<h3>For Site Managers</h3>
+<a href="#sm-login">Logging In</a>
+<a href="#sm-expenses">Viewing Expenses</a>
+<a href="#sm-budgets">Budget vs Actual</a>
+<a href="#sm-team">Managing Your Team</a>
+
+<h3>For UK Admins</h3>
+<a href="#admin-overview">Dashboard Overview</a>
+<a href="#reviewing">Reviewing Expenses</a>
+<a href="#flagging">Flagging for Query</a>
+<a href="#managing-budgets">Managing Budgets</a>
+<a href="#managing-users">Managing Users</a>
+<a href="#categories-sources">Categories &amp; Sources</a>
+<a href="#exchange-rates">Exchange Rates</a>
+<a href="#message-logs">Message Logs</a>
+<a href="#audit-trail">Audit Trail</a>
+<a href="#reports-dashboard">Reports Dashboard</a>
+<a href="#pdf-reports">PDF Reports</a>
+<a href="#projects">Managing Projects</a>
+
+<h3>Reference</h3>
+<a href="#api">REST API</a>
+<a href="#glossary">Glossary</a>
+{% endblock %}
+
+{% block content %}
+<h1>User Manual</h1>
+<p class="subtitle">Version 1.0 — March 2026 &middot; For Caretakers, Site Managers &amp; UK Administrators</p>
+
+<!-- ===== OVERVIEW ===== -->
+<h2 id="overview">Overview</h2>
+<p>The CCD Orphanage Portal replaces the previous Excel workbook system for tracking expenses across City Centre Dawah's orphanages in <strong>Uganda</strong>, <strong>Gambia</strong>, and <strong>Indonesia</strong>.</p>
+
+<div class="flow-diagram">
+    <div class="flow-steps">
+        <div class="flow-step">Caretaker sends message<br>via WhatsApp or Telegram</div>
+        <span class="flow-arrow">&#10132;</span>
+        <div class="flow-step">System processes &amp;<br>logs expense</div>
+        <span class="flow-arrow">&#10132;</span>
+        <div class="flow-step">UK Admin reviews<br>in Django Admin</div>
+    </div>
+</div>
+
+<p>The system supports:</p>
+<ul>
+    <li><strong>Dual messaging channels:</strong> WhatsApp and Telegram</li>
+    <li><strong>Multi-currency:</strong> Local amounts (UGX, GMD, IDR) automatically converted to GBP</li>
+    <li><strong>Budget guardrails:</strong> Automatic warnings when spending approaches or exceeds limits</li>
+    <li><strong>Receipt photos:</strong> Attach photos of receipts alongside expense messages</li>
+    <li><strong>Reports dashboard:</strong> Interactive charts and budget gauges</li>
+    <li><strong>PDF reports:</strong> Monthly summary and budget vs actual, downloadable</li>
+    <li><strong>Audit trail:</strong> Every action is logged for transparency</li>
+</ul>
+
+<!-- ===== USER ROLES ===== -->
+<h2 id="user-roles">User Roles</h2>
+<table>
+    <thead>
+        <tr><th>Role</th><th>Access</th><th>Typical Person</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><strong>Caretaker</strong></td><td>Send expenses via WhatsApp/Telegram only</td><td>Orphanage staff on the ground</td></tr>
+        <tr><td><strong>Site Manager</strong></td><td>View expenses for their site via Admin</td><td>Local team lead per orphanage</td></tr>
+        <tr><td><strong>Admin</strong></td><td>Full system access — all sites, budgets, users</td><td>UK-based CCD finance team</td></tr>
+        <tr><td><strong>Viewer</strong></td><td>Read-only Admin access</td><td>Board members, auditors</td></tr>
+    </tbody>
+</table>
+
+<!-- ===== CARETAKERS ===== -->
+<h2 id="message-format">Message Format</h2>
+<p>Every expense follows the same simple format:</p>
+<pre><code>Category Amount Description</code></pre>
+
+<p><strong>Examples:</strong></p>
+<table>
+    <thead>
+        <tr><th>Message</th><th>Category</th><th>Amount</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+        <tr><td><code>Food 50000 rice Kalerwe</code></td><td>Food</td><td>50,000</td><td>rice Kalerwe</td></tr>
+        <tr><td><code>Medical 25000 clinic visit</code></td><td>Medical</td><td>25,000</td><td>clinic visit</td></tr>
+        <tr><td><code>Utilities 15000</code></td><td>Utilities</td><td>15,000</td><td><em>(none)</em></td></tr>
+        <tr><td><code>Education 100000 school fees term 2</code></td><td>Education</td><td>100,000</td><td>school fees term 2</td></tr>
+        <tr><td><code>Transportation 8000 fuel</code></td><td>Transportation</td><td>8,000</td><td>fuel</td></tr>
+    </tbody>
+</table>
+
+<div class="callout callout-info">
+    <strong>Rules</strong>
+    <strong>Category</strong> must come first (one word, case-insensitive). <strong>Amount</strong> must be the second word (numbers only, no currency symbol). <strong>Description</strong> is optional — everything after the amount. Commas in amounts are accepted. Always enter amounts in your <strong>local currency</strong> (UGX, GMD, or IDR) — the system automatically converts to GBP.
+</div>
+
+<!-- ===== CATEGORIES ===== -->
+<h2 id="categories">Expense Categories</h2>
+<p>Use these categories exactly as shown (small typos are tolerated):</p>
+<div class="category-grid">
+    <div class="category-chip">Food</div>
+    <div class="category-chip">Salaries</div>
+    <div class="category-chip">Utilities</div>
+    <div class="category-chip">Medical</div>
+    <div class="category-chip">Clothing</div>
+    <div class="category-chip">Education</div>
+    <div class="category-chip">Maintenance</div>
+    <div class="category-chip">Transportation</div>
+    <div class="category-chip">Renovations</div>
+    <div class="category-chip">Contingency</div>
+</div>
+
+<table>
+    <thead><tr><th>Category</th><th>What it covers</th></tr></thead>
+    <tbody>
+        <tr><td><strong>Food</strong></td><td>All food purchases, groceries, meals</td></tr>
+        <tr><td><strong>Salaries</strong></td><td>Staff wages, helper payments</td></tr>
+        <tr><td><strong>Utilities</strong></td><td>Electricity, water, gas, internet</td></tr>
+        <tr><td><strong>Medical</strong></td><td>Clinic visits, medicine, health supplies</td></tr>
+        <tr><td><strong>Clothing</strong></td><td>Children's clothing, shoes, uniforms</td></tr>
+        <tr><td><strong>Education</strong></td><td>School fees, books, stationery</td></tr>
+        <tr><td><strong>Maintenance</strong></td><td>Repairs, cleaning supplies, minor fixes</td></tr>
+        <tr><td><strong>Transportation</strong></td><td>Fuel, bus fares, vehicle maintenance</td></tr>
+        <tr><td><strong>Renovations</strong></td><td>Major building work, construction</td></tr>
+        <tr><td><strong>Contingency</strong></td><td>Unplanned or emergency expenses</td></tr>
+    </tbody>
+</table>
+
+<div class="callout callout-info">
+    <strong>Typo tolerance</strong>
+    The system accepts near-exact typos (e.g. "Foood" &rarr; Food, "Educaton" &rarr; Education). If your spelling is too far off, you'll be asked to resend with the correct category.
+</div>
+
+<!-- ===== WHATSAPP ===== -->
+<h2 id="whatsapp">Sending via WhatsApp</h2>
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">Open WhatsApp and go to the CCD Expense Bot conversation</div>
+</div>
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">Type your expense: <code>Food 50000 rice Kalerwe</code></div>
+</div>
+<div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">Press Send and wait for the confirmation reply (usually within seconds)</div>
+</div>
+
+<div class="callout callout-warning">
+    <strong>First time?</strong>
+    Your phone number must be registered in the system by your admin before you can submit expenses. If you get a "not registered" error, contact your site manager.
+</div>
+
+<!-- ===== TELEGRAM ===== -->
+<h2 id="telegram">Sending via Telegram</h2>
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">Open Telegram and search for the CCD Expense Bot</div>
+</div>
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">Press <strong>Start</strong> to activate the bot (first time only)</div>
+</div>
+<div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">Type your expense: <code>Food 50000 rice Kalerwe</code></div>
+</div>
+<div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">Press Send and wait for the confirmation reply</div>
+</div>
+
+<div class="callout callout-warning">
+    <strong>First time?</strong>
+    Your Telegram username must be registered in the system. Make sure you have a username set (Settings &rarr; Username).
+</div>
+
+<!-- ===== RECEIPTS ===== -->
+<h2 id="receipts">Attaching Receipts</h2>
+<h3>WhatsApp</h3>
+<ol>
+    <li>Tap the camera or attachment icon</li>
+    <li>Take a photo of the receipt or choose from gallery</li>
+    <li>In the <strong>caption</strong> field, type your expense: <code>Food 50000 rice Kalerwe</code></li>
+    <li>Send</li>
+</ol>
+
+<h3>Telegram</h3>
+<ol>
+    <li>Tap the attachment icon (paperclip)</li>
+    <li>Choose a photo of the receipt</li>
+    <li>In the <strong>caption</strong> field, type your expense: <code>Food 50000 rice Kalerwe</code></li>
+    <li>Send</li>
+</ol>
+
+<div class="callout callout-info">
+    <strong>Note</strong>
+    The receipt photo is stored alongside the expense and visible to UK admins during review.
+</div>
+
+<!-- ===== REPLIES ===== -->
+<h2 id="replies">Understanding Replies</h2>
+<h3>Successful expense</h3>
+<pre><code>*Expense Logged* #142
+
+*Category:* Food
+*Amount:* 50000 UGX (10.00 GBP)
+*Receipt:* attached</code></pre>
+
+<p>This tells you:</p>
+<ul>
+    <li><strong>#142</strong> — unique reference number</li>
+    <li><strong>Category: Food</strong> — budget category it was filed under</li>
+    <li><strong>Amount: 50000 UGX (10.00 GBP)</strong> — local amount and converted GBP value</li>
+    <li><strong>Receipt: attached</strong> (or "none" if no photo was sent)</li>
+</ul>
+
+<h3>Error — invalid format</h3>
+<pre><code>Send expenses as:
+Category Amount [description]
+
+Example: Food 50000 rice Kalerwe</code></pre>
+
+<h3>Error — unrecognised category</h3>
+<pre><code>Category 'Fuud' not recognised.
+Valid categories: Clothing, Contingency, Education, Food, Maintenance,
+Medical, Renovations, Salaries, Transportation, Utilities</code></pre>
+
+<h3>Error — not registered</h3>
+<pre><code>Your number (+256XXX...) is not registered.
+Contact your site manager to register.</code></pre>
+
+<!-- ===== BUDGET WARNINGS ===== -->
+<h2 id="budget-warnings">Budget Warnings</h2>
+<p>When your expense pushes a category's annual budget past a threshold:</p>
+
+<h3>At 80% of budget</h3>
+<pre><code>*Expense Logged* #143
+
+*Category:* Food
+*Amount:* 50000 UGX (10.00 GBP)
+*Receipt:* none
+&#9888; Budget alert: Food is at 83% (&pound;340.00 remaining of &pound;2,000.00)</code></pre>
+
+<h3>At 100% (budget exceeded)</h3>
+<pre><code>*Expense Logged* #144
+
+*Category:* Food
+*Amount:* 50000 UGX (10.00 GBP)
+*Receipt:* none
+&#9888; BUDGET EXCEEDED: Food is at 105% (&pound;2,100.00 of &pound;2,000.00)</code></pre>
+
+<div class="callout callout-success">
+    <strong>Important</strong>
+    Budget warnings do NOT block your expense. The expense is always saved. The warning alerts you and your admin so they can investigate.
+</div>
+
+<!-- ===== COMMON MISTAKES ===== -->
+<h2 id="common-mistakes">Common Mistakes and Fixes</h2>
+<table>
+    <thead><tr><th>Problem</th><th>What you sent</th><th>Fix</th></tr></thead>
+    <tbody>
+        <tr><td>Category missing</td><td><code>50000 rice</code></td><td>Add category first: <code>Food 50000 rice</code></td></tr>
+        <tr><td>Amount not a number</td><td><code>Food fifty thousand</code></td><td>Use digits: <code>Food 50000</code></td></tr>
+        <tr><td>Wrong category spelling</td><td><code>Fuud 50000</code></td><td>Resend as <code>Food 50000</code></td></tr>
+        <tr><td>Currency symbol included</td><td><code>Food $50000</code></td><td>Remove symbol: <code>Food 50000</code></td></tr>
+        <tr><td>Phone not registered</td><td>Any message</td><td>Contact your site manager</td></tr>
+        <tr><td>No Telegram username</td><td>Any message</td><td>Set username in Telegram Settings</td></tr>
+    </tbody>
+</table>
+
+<!-- ===== SITE MANAGERS ===== -->
+<h2 id="sm-login">Logging In (Site Managers)</h2>
+<div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">Go to <code>https://orphanages.ccdawah.org/admin/</code></div>
+</div>
+<div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">Log in with your username and password, or click <strong>"Sign in with Google"</strong> (for <code>@ccdawah.org</code> accounts)</div>
+</div>
+
+<h2 id="sm-expenses">Viewing Expenses</h2>
+<p>After logging in, click <strong>"Expenses"</strong> in the left sidebar. Key columns:</p>
+<ul>
+    <li><strong>Expense date</strong> — when the expense was incurred</li>
+    <li><strong>Site</strong> — which orphanage</li>
+    <li><strong>Category</strong> — budget category</li>
+    <li><strong>Amount</strong> — GBP with local currency in brackets</li>
+    <li><strong>Budget</strong> — colour-coded warning badge</li>
+    <li><strong>Status</strong> — Logged / Reviewed / Queried</li>
+    <li><strong>Channel</strong> — How the expense was submitted</li>
+</ul>
+
+<p>Use the right-side filter panel to narrow by site, category, status, channel, budget warning, or date.</p>
+
+<h2 id="sm-budgets">Budget vs Actual Dashboard</h2>
+<p>Click <strong>"Site budgets"</strong> in the sidebar to see every budget line with Annual Amount, Actual Spend, Remaining, and % Used. This replaces the old Excel summary sheet.</p>
+
+<h2 id="sm-team">Managing Your Team</h2>
+<p>Ensure all caretakers have their <strong>phone numbers</strong> (for WhatsApp) and <strong>Telegram usernames</strong> registered. New caretakers should be onboarded using the <a href="{% url 'docs:onboarding' %}">Onboarding Guide</a>.</p>
+
+<div class="callout callout-info">
+    <strong>Note</strong>
+    You cannot create users yourself — ask a UK admin to create accounts.
+</div>
+
+<!-- ===== UK ADMINISTRATORS ===== -->
+<h2 id="admin-overview">Admin Dashboard Overview</h2>
+<table>
+    <thead><tr><th>Section</th><th>Models</th><th>Purpose</th></tr></thead>
+    <tbody>
+        <tr><td><strong>CORE</strong></td><td>Organisations, Sites, Users, Budget categories, Funding sources, Project categories, Audit logs</td><td>Master data and user management</td></tr>
+        <tr><td><strong>EXPENSES</strong></td><td>Site budgets, Expenses, Exchange rates, Projects, Project budgets, Project expenses</td><td>Financial tracking</td></tr>
+        <tr><td><strong>WEBHOOKS</strong></td><td>WhatsApp messages, Telegram messages</td><td>Raw message audit trail</td></tr>
+    </tbody>
+</table>
+
+<h2 id="reviewing">Reviewing Expenses</h2>
+<div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>Expenses &rarr; Expenses</strong></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body">Filter by <strong>Status = Logged</strong> to see unreviewed expenses</div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body">Review each expense: check amount, category, receipt, budget warnings</div></div>
+<div class="step"><div class="step-num">4</div><div class="step-body">Select expenses, choose <strong>"Mark as reviewed"</strong> from the Action dropdown, click Go</div></div>
+
+<h2 id="flagging">Flagging Expenses for Query</h2>
+<p>If an expense looks incorrect: select it, choose <strong>"Flag for query"</strong> from the Action dropdown, and click Go. The caretaker/site manager should then be contacted to clarify.</p>
+
+<h2 id="managing-budgets">Managing Budgets</h2>
+<div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>Expenses &rarr; Site budgets &rarr; Add Site budget</strong></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body">Select Site, Category, Financial year, and enter Annual amount (GBP)</div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body">Click <strong>Save</strong> — budget guardrails take effect immediately</div></div>
+
+<h2 id="managing-users">Managing Users</h2>
+<div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>Core &rarr; Users &rarr; Add User</strong></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body">Fill in: Username, Password, Organisation, Site, Role, Phone, Telegram username</div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body">Click <strong>Save</strong></div></div>
+
+<div class="callout callout-danger">
+    <strong>Critical for messaging</strong>
+    A caretaker cannot submit expenses via WhatsApp unless their phone number is entered. They cannot submit via Telegram unless their telegram_username is entered.
+</div>
+
+<p><strong>Phone number format:</strong> Use E.164 digits without the <code>+</code> prefix:</p>
+<ul>
+    <li>Uganda: <code>256...</code> (e.g. <code>256701234567</code>)</li>
+    <li>Gambia: <code>220...</code> (e.g. <code>2201234567</code>)</li>
+    <li>Indonesia: <code>62...</code> (e.g. <code>628123456789</code>)</li>
+</ul>
+
+<h2 id="categories-sources">Managing Categories and Funding Sources</h2>
+<p>Budget Categories and Funding Sources are managed under <strong>Core</strong> in the sidebar.</p>
+
+<div class="callout callout-warning">
+    <strong>Warning</strong>
+    Changing a category name after expenses have been logged against it will affect historical reporting. Prefer deactivating old categories and creating new ones.
+</div>
+
+<h2 id="exchange-rates">Exchange Rates</h2>
+<p>The system uses the most recent rate on or before the expense date. Add/update rates under <strong>Expenses &rarr; Exchange rates</strong>.</p>
+<table>
+    <thead><tr><th>Currency</th><th>Country</th><th>Example Rate</th></tr></thead>
+    <tbody>
+        <tr><td>UGX</td><td>Uganda</td><td>1 GBP = ~5,000 UGX</td></tr>
+        <tr><td>GMD</td><td>Gambia</td><td>1 GBP = ~75 GMD</td></tr>
+        <tr><td>IDR</td><td>Indonesia</td><td>1 GBP = ~20,000 IDR</td></tr>
+    </tbody>
+</table>
+
+<div class="callout callout-danger">
+    <strong>Important</strong>
+    If no exchange rate exists for a currency, the expense will be rejected and the caretaker will receive an error message. Always ensure rates are up to date.
+</div>
+
+<h2 id="message-logs">Viewing Message Logs</h2>
+<p>Every incoming message is stored for audit purposes under <strong>Messaging</strong> in the sidebar. Shows message IDs, sender details, body text, media references, and timestamps.</p>
+
+<h2 id="audit-trail">Audit Trail</h2>
+<p>Every model save is recorded under <strong>Core &rarr; Audit logs</strong> with timestamp, user, table name, record ID, and action (CREATE/UPDATE). This provides a tamper-evident record of all system activity.</p>
+
+<h2 id="reports-dashboard">Reports Dashboard</h2>
+<p>The interactive dashboard at <a href="/reports/dashboard/">/reports/dashboard/</a> provides:</p>
+<table>
+    <thead><tr><th>Section</th><th>What it shows</th></tr></thead>
+    <tbody>
+        <tr><td><strong>Summary cards</strong></td><td>Total spend (GBP), expense count, flagged expenses</td></tr>
+        <tr><td><strong>Monthly trend</strong></td><td>Line chart of month-by-month expenditure</td></tr>
+        <tr><td><strong>Category breakdown</strong></td><td>Bar chart of spending per category</td></tr>
+        <tr><td><strong>Channel breakdown</strong></td><td>Doughnut chart — WhatsApp vs Telegram vs web</td></tr>
+        <tr><td><strong>Budget gauges</strong></td><td>Progress bars per category with status badges</td></tr>
+        <tr><td><strong>Recent expenses</strong></td><td>10 most recent with amounts and categories</td></tr>
+    </tbody>
+</table>
+
+<h2 id="pdf-reports">PDF Reports</h2>
+<h3>Monthly Expense Summary</h3>
+<p>Go to <a href="/reports/monthly-summary/">/reports/monthly-summary/</a>, select Site, Year, Month, then Preview or Download PDF.</p>
+
+<h3>Budget vs Actual Report</h3>
+<p>Go to <a href="/reports/budget-vs-actual/">/reports/budget-vs-actual/</a>, select Site and Year, then Preview or Download PDF.</p>
+
+<h2 id="projects">Managing Projects</h2>
+<p>Projects track one-off or recurring initiatives (e.g. "Ramadan Food Packs 2026"). Create under <strong>Expenses &rarr; Projects</strong> with site, category, name, budget, timeline, and status (Planned &rarr; Active &rarr; Completed/Cancelled).</p>
+<p>Link expenses to projects via <strong>Expenses &rarr; Project expenses</strong> using the Project dropdown.</p>
+
+<!-- ===== API ===== -->
+<h2 id="api">REST API (Phase 2)</h2>
+<p>A REST API exists for the planned Flutter mobile app, using token authentication:</p>
+<table>
+    <thead><tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr></thead>
+    <tbody>
+        <tr><td><code>/api/v1/auth/token/</code></td><td>POST</td><td>Get auth token</td></tr>
+        <tr><td><code>/api/v1/sites/</code></td><td>GET</td><td>List sites</td></tr>
+        <tr><td><code>/api/v1/expenses/</code></td><td>GET/POST</td><td>List or create expenses</td></tr>
+        <tr><td><code>/api/v1/categories/</code></td><td>GET</td><td>Budget categories</td></tr>
+        <tr><td><code>/api/v1/projects/</code></td><td>GET</td><td>List projects</td></tr>
+        <tr><td><code>/api/v1/sync/</code></td><td>POST</td><td>Offline-first sync</td></tr>
+    </tbody>
+</table>
+
+<!-- ===== GLOSSARY ===== -->
+<h2 id="glossary">Glossary</h2>
+<table>
+    <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+    <tbody>
+        <tr><td><strong>GBP</strong></td><td>British Pounds Sterling — the reporting currency</td></tr>
+        <tr><td><strong>UGX</strong></td><td>Ugandan Shilling</td></tr>
+        <tr><td><strong>GMD</strong></td><td>Gambian Dalasi</td></tr>
+        <tr><td><strong>IDR</strong></td><td>Indonesian Rupiah</td></tr>
+        <tr><td><strong>Channel</strong></td><td>How the expense was submitted (WhatsApp, Telegram, Web, App, Paper)</td></tr>
+        <tr><td><strong>Logged</strong></td><td>Expense recorded but not yet reviewed</td></tr>
+        <tr><td><strong>Reviewed</strong></td><td>Expense checked and approved by admin</td></tr>
+        <tr><td><strong>Queried</strong></td><td>Expense flagged for investigation</td></tr>
+        <tr><td><strong>Budget guardrail</strong></td><td>Automatic warning at 80% or 100% of annual budget</td></tr>
+        <tr><td><strong>Fuzzy matching</strong></td><td>System's ability to match near-correct category names</td></tr>
+        <tr><td><strong>Idempotency</strong></td><td>System prevents duplicate expenses from the same message</td></tr>
+        <tr><td><strong>Project</strong></td><td>A trackable initiative with its own budget and timeline</td></tr>
+    </tbody>
+</table>
+{% endblock %}

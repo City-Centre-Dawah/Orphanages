@@ -1,0 +1,367 @@
+{% extends "docs/base_docs.html" %}
+{% block title %}Onboarding Guide{% endblock %}
+{% block nav_onboarding %}active{% endblock %}
+
+{% block sidebar %}
+<h3>Overview</h3>
+<a href="#overview">Onboarding Overview</a>
+<a href="#pre-checklist">Pre-Onboarding Checklist</a>
+
+<h3>Phases</h3>
+<a href="#phase1">Phase 1 — Admin Setup</a>
+<a href="#phase2">Phase 2 — Site Manager</a>
+<a href="#phase3">Phase 3 — Caretaker</a>
+<a href="#phase4">Phase 4 — First Week Live</a>
+<a href="#phase5">Phase 5 — Ongoing Support</a>
+
+<h3>Additional</h3>
+<a href="#new-site">Onboarding a New Site</a>
+<a href="#ref-card">Quick Reference Card</a>
+<a href="#checklists">Checklist Templates</a>
+{% endblock %}
+
+{% block content %}
+<h1>Onboarding Guide</h1>
+<p class="subtitle">Version 1.0 — March 2026 &middot; For UK Administrators and Site Managers responsible for onboarding</p>
+
+<!-- ===== OVERVIEW ===== -->
+<h2 id="overview">Onboarding Overview</h2>
+<p>Onboarding follows a top-down approach: UK admins configure the system first, then train site managers, who then onboard caretakers on the ground.</p>
+
+<div class="flow-diagram">
+    <div class="flow-steps">
+        <div class="flow-step">
+            <strong>Week 1</strong><br>
+            Admin Setup<br>
+            <small>Create users, set budgets, exchange rates</small>
+        </div>
+        <span class="flow-arrow">&#10132;</span>
+        <div class="flow-step">
+            <strong>Week 2</strong><br>
+            Site Manager Onboarding<br>
+            <small>Admin login, review views, team planning</small>
+        </div>
+        <span class="flow-arrow">&#10132;</span>
+        <div class="flow-step">
+            <strong>Week 3+</strong><br>
+            Caretaker Onboarding<br>
+            <small>First message, practice run, go live</small>
+        </div>
+    </div>
+</div>
+
+<p><strong>Total onboarding time per site:</strong> 1–2 weeks from admin setup to live expenses.</p>
+
+<!-- ===== PRE-CHECKLIST ===== -->
+<h2 id="pre-checklist">Pre-Onboarding Checklist</h2>
+
+<h3>System Prerequisites</h3>
+<ul class="checklist">
+    <li>Django application is deployed and accessible at the production URL</li>
+    <li>Celery worker is running on the background processing server</li>
+    <li>PostgreSQL database is running with seed data loaded</li>
+    <li>Redis is running (for message deduplication)</li>
+</ul>
+
+<h3>Messaging Channel Prerequisites</h3>
+<p><strong>For WhatsApp (Meta Cloud API):</strong></p>
+<ul class="checklist">
+    <li>Meta Developer account and Meta Business account created</li>
+    <li>Meta App with WhatsApp product configured</li>
+    <li>Webhook URL set pointing to <code>/webhooks/whatsapp/</code></li>
+    <li>"messages" webhook field subscribed</li>
+    <li>Permanent access token generated via System User</li>
+    <li>Test message sent and received successfully</li>
+</ul>
+
+<p><strong>For Telegram:</strong></p>
+<ul class="checklist">
+    <li>Telegram bot created via @BotFather</li>
+    <li>Bot token configured in <code>.env</code></li>
+    <li>Webhook registered pointing to <code>/webhooks/telegram/</code></li>
+    <li>Test <code>/start</code> command works</li>
+</ul>
+
+<h3>Data Prerequisites</h3>
+<ul class="checklist">
+    <li>Organisation "City Centre Dawah" exists (created by <code>seed_data</code>)</li>
+    <li>All three sites exist: Kampala, Banjul, Indonesia</li>
+    <li>Budget categories are loaded (10 categories)</li>
+    <li>Exchange rates are current for UGX, GMD, IDR</li>
+    <li>Annual budgets are set for the current financial year</li>
+</ul>
+
+<!-- ===== PHASE 1 ===== -->
+<h2 id="phase1">Phase 1 — Admin Setup (UK Side)</h2>
+<p><strong>Who:</strong> UK Administrator &middot; <strong>Time:</strong> 30–60 minutes per site</p>
+
+<h3>Step 1: Create the Site Manager Account</h3>
+<div class="step"><div class="step-num">1</div><div class="step-body">Go to <strong>Core &rarr; Users &rarr; Add User</strong></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body">Fill in username, password, name, email, organisation, site, role (<code>site_manager</code>), phone, Telegram username</div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body">Set <strong>Staff status = Checked</strong> (required for Admin access). Do NOT set Superuser status.</div></div>
+<div class="step"><div class="step-num">4</div><div class="step-body">Click <strong>Save</strong></div></div>
+
+<h3>Step 2: Create Caretaker Accounts</h3>
+<p>For each caretaker:</p>
+<table>
+    <thead><tr><th>Field</th><th>Value</th><th>Notes</th></tr></thead>
+    <tbody>
+        <tr><td>Username</td><td>Unique name</td><td>e.g. <code>caretaker_john_kampala</code></td></tr>
+        <tr><td>Organisation</td><td>City Centre Dawah</td><td></td></tr>
+        <tr><td>Site</td><td>Their orphanage</td><td>Must match the site manager's site</td></tr>
+        <tr><td>Role</td><td><code>caretaker</code></td><td></td></tr>
+        <tr><td>Phone</td><td>WhatsApp number</td><td><strong>Critical</strong> — exact international format</td></tr>
+        <tr><td>Telegram username</td><td>Their @ name</td><td><strong>Critical</strong> — must match actual username</td></tr>
+    </tbody>
+</table>
+
+<h3>Step 3: Set Annual Budgets</h3>
+<p>For each category at the site, go to <strong>Expenses &rarr; Site budgets &rarr; Add</strong> and enter Site, Category, Financial year, and Annual amount (GBP).</p>
+
+<table>
+    <thead><tr><th>Category</th><th>Set a budget?</th><th>Notes</th></tr></thead>
+    <tbody>
+        <tr><td>Food</td><td><strong>Yes</strong></td><td>Typically the largest expense</td></tr>
+        <tr><td>Salaries</td><td><strong>Yes</strong></td><td>Predictable, should match payroll</td></tr>
+        <tr><td>Utilities</td><td><strong>Yes</strong></td><td>Relatively stable</td></tr>
+        <tr><td>Medical</td><td><strong>Yes</strong></td><td>Important to track, can spike</td></tr>
+        <tr><td>Clothing</td><td><strong>Yes</strong></td><td>Seasonal</td></tr>
+        <tr><td>Education</td><td><strong>Yes</strong></td><td>Term-based</td></tr>
+        <tr><td>Maintenance</td><td><strong>Yes</strong></td><td>Prevents overspend on ad-hoc repairs</td></tr>
+        <tr><td>Transportation</td><td><strong>Yes</strong></td><td>Can creep up</td></tr>
+        <tr><td>Renovations</td><td>Optional</td><td>May be project-based</td></tr>
+        <tr><td>Contingency</td><td>Optional</td><td>By definition unpredictable</td></tr>
+    </tbody>
+</table>
+
+<h3>Step 4: Verify Exchange Rates</h3>
+<p>Check <strong>Expenses &rarr; Exchange rates</strong> for current rates. Update weekly or monthly.</p>
+
+<h3>Step 5: Send Test Message</h3>
+<div class="step"><div class="step-num">1</div><div class="step-body">Register your own phone number as a user</div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body">Send: <code>Food 1000 test expense please delete</code></div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body">Verify confirmation reply and check the expense in Admin</div></div>
+<div class="step"><div class="step-num">4</div><div class="step-body">Delete the test expense</div></div>
+
+<!-- ===== PHASE 2 ===== -->
+<h2 id="phase2">Phase 2 — Site Manager Onboarding</h2>
+<p><strong>Who:</strong> UK Administrator (via video call) &middot; <strong>Time:</strong> 30–45 minutes per site manager</p>
+
+<h3>Session Agenda</h3>
+<table>
+    <thead><tr><th>Topic</th><th>Time</th><th>Cover</th></tr></thead>
+    <tbody>
+        <tr><td>Introduction</td><td>5 min</td><td>System purpose, high-level flow</td></tr>
+        <tr><td>Logging In</td><td>5 min</td><td>Admin URL, login process, Google SSO</td></tr>
+        <tr><td>Expense List</td><td>10 min</td><td>Filters, budget warning badges, expense details</td></tr>
+        <tr><td>Budget vs Actual</td><td>10 min</td><td>Columns explained, replaces Excel summary</td></tr>
+        <tr><td>Message Pipeline</td><td>5 min</td><td>Message logs, automatic processing, statuses</td></tr>
+        <tr><td>Responsibilities</td><td>5 min</td><td>Contact details, issue reporting, budget monitoring</td></tr>
+        <tr><td>Questions &amp; Practice</td><td>5 min</td><td>Free exploration, Q&amp;A</td></tr>
+    </tbody>
+</table>
+
+<h3>Post-Session Tasks</h3>
+<ul class="checklist">
+    <li>Log into admin independently</li>
+    <li>Find and filter expenses for their site</li>
+    <li>Review the budget vs actual view</li>
+    <li>Confirm all caretaker contact details are correct</li>
+    <li>Report any discrepancies to UK admin</li>
+</ul>
+
+<!-- ===== PHASE 3 ===== -->
+<h2 id="phase3">Phase 3 — Caretaker Onboarding</h2>
+<p><strong>Who:</strong> Site Manager (in person) &middot; <strong>Time:</strong> 15–20 minutes per caretaker</p>
+
+<h3>Before the Session</h3>
+<ul class="checklist">
+    <li>Confirm the caretaker's phone number is registered</li>
+    <li>Confirm their Telegram username is registered</li>
+    <li>Have the bot's WhatsApp number or Telegram bot name ready</li>
+    <li>Print the Quick Reference Card (see below)</li>
+</ul>
+
+<h3>Session Steps</h3>
+<div class="step"><div class="step-num">1</div><div class="step-body"><strong>Save the Bot Contact (2 min)</strong> — Give the caretaker the bot number/username, have them save it and open a chat</div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body"><strong>Explain the Format (5 min)</strong> — Write on a board: <code>Category Amount Description</code> with examples</div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body"><strong>Practice Message (5 min)</strong> — Have them send <code>Food 1000 onboarding test</code> and read the confirmation together</div></div>
+<div class="step"><div class="step-num">4</div><div class="step-body"><strong>Receipt Photo (3 min)</strong> — Practise attaching a photo with a caption expense</div></div>
+<div class="step"><div class="step-num">5</div><div class="step-body"><strong>Discuss Rules (5 min)</strong> — One expense per message, send as you spend, keep receipts, check replies, budget warnings</div></div>
+<div class="step"><div class="step-num">6</div><div class="step-body"><strong>Hand Out Reference Card</strong></div></div>
+
+<div class="callout callout-warning">
+    <strong>After onboarding</strong>
+    Delete all test expenses from the system before going live.
+</div>
+
+<!-- ===== PHASE 4 ===== -->
+<h2 id="phase4">Phase 4 — First Week Live</h2>
+
+<h3>Day 1–2: Active Monitoring</h3>
+<p><strong>UK Admin:</strong></p>
+<ul class="checklist">
+    <li>Check incoming expenses every few hours</li>
+    <li>Verify amounts are reasonable</li>
+    <li>Confirm exchange rates are producing sensible GBP amounts</li>
+    <li>Look for formatting errors in message logs</li>
+</ul>
+<p><strong>Site Manager:</strong></p>
+<ul class="checklist">
+    <li>Be available to help caretakers with questions</li>
+    <li>Remind caretakers to use the bot instead of paper</li>
+    <li>Check all caretakers have sent at least one real expense</li>
+</ul>
+
+<h3>Day 3–5: Light Monitoring</h3>
+<ul class="checklist">
+    <li>First batch review — mark legitimate expenses as "Reviewed"</li>
+    <li>Query any suspicious expenses</li>
+    <li>Check budget vs actual — are numbers sensible?</li>
+</ul>
+
+<h3>End of Week 1: Review</h3>
+<ul class="checklist">
+    <li>Are all caretakers using the system?</li>
+    <li>Are the categories appropriate?</li>
+    <li>Are the budgets realistic?</li>
+    <li>Are exchange rates accurate?</li>
+    <li>Any technical issues?</li>
+</ul>
+
+<!-- ===== PHASE 5 ===== -->
+<h2 id="phase5">Phase 5 — Ongoing Support</h2>
+
+<h3>Monthly Tasks</h3>
+<table>
+    <thead><tr><th>Task</th><th>Who</th></tr></thead>
+    <tbody>
+        <tr><td>Update exchange rates</td><td>UK Admin (weekly or monthly)</td></tr>
+        <tr><td>Review and approve expenses</td><td>UK Admin (weekly)</td></tr>
+        <tr><td>Check budget vs actual</td><td>UK Admin + Site Manager</td></tr>
+        <tr><td>Verify all caretakers are active</td><td>Site Manager</td></tr>
+    </tbody>
+</table>
+
+<h3>Quarterly Tasks</h3>
+<table>
+    <thead><tr><th>Task</th><th>Who</th></tr></thead>
+    <tbody>
+        <tr><td>Review budget allocations</td><td>UK Admin</td></tr>
+        <tr><td>Deactivate unused categories</td><td>UK Admin</td></tr>
+        <tr><td>Review audit logs for anomalies</td><td>UK Admin</td></tr>
+        <tr><td>Refresh caretaker training if needed</td><td>Site Manager</td></tr>
+    </tbody>
+</table>
+
+<h3>Common Support Requests</h3>
+<table>
+    <thead><tr><th>Request</th><th>Action</th></tr></thead>
+    <tbody>
+        <tr><td>"My message isn't working"</td><td>Check phone/username registration, verify format</td></tr>
+        <tr><td>"I sent the wrong amount"</td><td>Admin can edit or flag as Queried</td></tr>
+        <tr><td>"New caretaker joined"</td><td>Create user, register contacts, run onboarding</td></tr>
+        <tr><td>"Caretaker left"</td><td>Deactivate user (don't delete)</td></tr>
+        <tr><td>"Need a new category"</td><td>Create under Budget Categories, inform all caretakers</td></tr>
+        <tr><td>"Budget needs changing"</td><td>Edit the budget record for that site/category/year</td></tr>
+    </tbody>
+</table>
+
+<!-- ===== NEW SITE ===== -->
+<h2 id="new-site">Onboarding a New Site</h2>
+<div class="step"><div class="step-num">1</div><div class="step-body"><strong>Create the Site</strong> — Core &rarr; Sites &rarr; Add (name, country, city, currency)</div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body"><strong>Add Exchange Rate</strong> — Expenses &rarr; Exchange rates &rarr; Add</div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body"><strong>Set Up Budgets</strong> — Create a Site budget for each category</div></div>
+<div class="step"><div class="step-num">4</div><div class="step-body"><strong>Create Users</strong> — Site manager + all caretaker accounts</div></div>
+<div class="step"><div class="step-num">5</div><div class="step-body"><strong>Configure Messaging</strong> — Same bot works for all sites (identified by phone/username)</div></div>
+<div class="step"><div class="step-num">6</div><div class="step-body"><strong>Run Onboarding</strong> — Follow Phases 2–4 above</div></div>
+
+<!-- ===== REFERENCE CARD ===== -->
+<h2 id="ref-card">Quick Reference Card</h2>
+<p>Print and laminate for each caretaker:</p>
+
+<div class="ref-card">
+    <h4>CCD EXPENSE BOT — QUICK REFERENCE</h4>
+    <p><strong>How to send an expense:</strong></p>
+    <pre><code>Category  Amount  Description
+
+Food      50000   rice Kalerwe
+Medical   25000   clinic visit
+Utilities 15000   electricity
+Education 100000  school fees term 2
+Clothing  30000   uniforms</code></pre>
+
+    <p><strong>Categories:</strong></p>
+    <div class="category-grid">
+        <div class="category-chip">Food</div>
+        <div class="category-chip">Salaries</div>
+        <div class="category-chip">Utilities</div>
+        <div class="category-chip">Medical</div>
+        <div class="category-chip">Clothing</div>
+        <div class="category-chip">Education</div>
+        <div class="category-chip">Maintenance</div>
+        <div class="category-chip">Transportation</div>
+        <div class="category-chip">Renovations</div>
+        <div class="category-chip">Contingency</div>
+    </div>
+
+    <p><strong>Rules:</strong></p>
+    <ul>
+        <li>One expense per message</li>
+        <li>Amount in local currency (no symbols)</li>
+        <li>Attach receipt photo when possible</li>
+        <li>Always check the reply for confirmation</li>
+        <li>If you see a budget warning, tell your site manager</li>
+    </ul>
+
+    <p><strong>Problems?</strong> Contact your site manager</p>
+</div>
+
+<!-- ===== CHECKLISTS ===== -->
+<h2 id="checklists">Checklist Templates</h2>
+
+<h3>Per-Site Onboarding Checklist</h3>
+<div class="ref-card">
+    <h4>SITE: ______________ &nbsp; DATE: ______________</h4>
+
+    <p><strong>Phase 1 — Admin Setup (UK)</strong></p>
+    <ul class="checklist">
+        <li>Site exists in system</li>
+        <li>Exchange rate set for local currency</li>
+        <li>Site budgets created for all categories</li>
+        <li>Site manager account created (staff status = true)</li>
+        <li>All caretaker accounts created</li>
+        <li>All phone numbers in international format</li>
+        <li>All Telegram usernames entered</li>
+        <li>Test message sent and confirmed working</li>
+    </ul>
+
+    <p><strong>Phase 2 — Site Manager Onboarding</strong></p>
+    <ul class="checklist">
+        <li>Site manager logged in successfully</li>
+        <li>Walked through expense list and filters</li>
+        <li>Walked through budget vs actual view</li>
+        <li>Shown message logs</li>
+        <li>Responsibilities discussed and understood</li>
+    </ul>
+
+    <p><strong>Phase 3 — Caretaker Onboarding</strong></p>
+    <ul class="checklist">
+        <li>Bot contact saved</li>
+        <li>Format explained</li>
+        <li>Practice message sent and confirmed</li>
+        <li>Receipt photo tested</li>
+        <li>Rules discussed</li>
+        <li>Reference card given</li>
+    </ul>
+
+    <p><strong>Phase 4 — First Week Live</strong></p>
+    <ul class="checklist">
+        <li>Day 1-2: Active monitoring complete</li>
+        <li>Day 3-5: First batch review done</li>
+        <li>End of week: Review meeting held</li>
+        <li>All test expenses deleted</li>
+        <li>All caretakers submitting real expenses</li>
+    </ul>
+</div>
+{% endblock %}

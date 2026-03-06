@@ -1,0 +1,262 @@
+{% extends "docs/base_docs.html" %}
+{% block title %}Troubleshooting &amp; FAQ{% endblock %}
+{% block nav_troubleshooting %}active{% endblock %}
+
+{% block sidebar %}
+<h3>Caretaker Issues</h3>
+<a href="#no-reply">Bot not replying</a>
+<a href="#not-registered">Not registered error</a>
+<a href="#bad-format">Format errors</a>
+<a href="#wrong-category">Wrong category</a>
+<a href="#wrong-amount">Wrong GBP amount</a>
+<a href="#no-exchange-rate">No exchange rate</a>
+<a href="#receipt-issues">Receipt problems</a>
+<a href="#budget-warning">Budget warnings</a>
+
+<h3>Site Manager Issues</h3>
+<a href="#cant-login">Can't log in</a>
+<a href="#no-expenses-visible">No expenses visible</a>
+<a href="#wrong-budget-pct">Wrong budget percentage</a>
+
+<h3>Admin Issues</h3>
+<a href="#no-whatsapp">WhatsApp not working</a>
+<a href="#no-telegram">Telegram not working</a>
+<a href="#duplicates">Duplicate expenses</a>
+<a href="#exchange-rate-wrong">Exchange rate not applying</a>
+<a href="#celery-down">Celery worker down</a>
+<a href="#sentry-noise">Sentry noise</a>
+
+<h3>FAQ</h3>
+<a href="#faq">Frequently Asked Questions</a>
+{% endblock %}
+
+{% block content %}
+<h1>Troubleshooting &amp; FAQ</h1>
+<p class="subtitle">Common issues and how to resolve them &middot; For all user roles</p>
+
+<!-- ============================================================ -->
+<!-- CARETAKER ISSUES -->
+<!-- ============================================================ -->
+<h2 id="caretaker-issues">Caretaker Issues</h2>
+
+<!-- No reply -->
+<h3 id="no-reply">Bot not replying to my message</h3>
+<table>
+    <thead><tr><th>Possible Cause</th><th>Solution</th></tr></thead>
+    <tbody>
+        <tr><td>Message wasn't delivered (network issue)</td><td>Check you have internet. Wait 1 minute and resend.</td></tr>
+        <tr><td>Celery worker is down (system issue)</td><td>Contact your site manager, who should escalate to the UK admin.</td></tr>
+        <tr><td>Bot number/username is wrong</td><td>Verify you're messaging the correct bot contact.</td></tr>
+        <tr><td>WhatsApp 24-hour window expired</td><td>Send a new message to re-open the conversation window.</td></tr>
+    </tbody>
+</table>
+
+<div class="callout callout-info">
+    <strong>Tip</strong>
+    If you see a single tick (WhatsApp) or no reply after 2 minutes, the message may not have reached the server. Check your internet connection and resend.
+</div>
+
+<!-- Not registered -->
+<h3 id="not-registered">Getting "not registered" error</h3>
+<p>This means your phone number (WhatsApp) or Telegram username is not linked to a user account in the system.</p>
+<div class="step"><div class="step-num">1</div><div class="step-body">Contact your site manager</div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body">They will ask a UK admin to add/correct your phone number or Telegram username</div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body">Once updated, try sending your expense again</div></div>
+
+<div class="callout callout-warning">
+    <strong>For Admins</strong>
+    <strong>WhatsApp:</strong> Phone must be in E.164 format <em>without</em> the <code>+</code> prefix (e.g. <code>256701234567</code>).
+    <br><strong>Telegram:</strong> Username must be entered <em>without</em> the <code>@</code> symbol (e.g. <code>john_kampala</code>).
+</div>
+
+<!-- Bad format -->
+<h3 id="bad-format">Getting format error messages</h3>
+<p>The bot replied with:</p>
+<pre><code>Send expenses as:
+Category Amount [description]
+
+Example: Food 50000 rice Kalerwe</code></pre>
+
+<p><strong>Common causes:</strong></p>
+<table>
+    <thead><tr><th>What you sent</th><th>Problem</th><th>Fix</th></tr></thead>
+    <tbody>
+        <tr><td><code>50000 rice</code></td><td>Category missing</td><td><code>Food 50000 rice</code></td></tr>
+        <tr><td><code>Food fifty thousand</code></td><td>Amount not a number</td><td><code>Food 50000</code></td></tr>
+        <tr><td><code>Food $50000</code></td><td>Currency symbol included</td><td><code>Food 50000</code></td></tr>
+        <tr><td><code>rice Kalerwe 50000 Food</code></td><td>Wrong order</td><td><code>Food 50000 rice Kalerwe</code></td></tr>
+        <tr><td><code>Food 5e4</code></td><td>Scientific notation</td><td><code>Food 50000</code></td></tr>
+        <tr><td><code>Food -50000</code></td><td>Negative amount</td><td><code>Food 50000</code></td></tr>
+        <tr><td><code>Food 0</code></td><td>Zero amount</td><td>Enter the actual amount spent</td></tr>
+    </tbody>
+</table>
+
+<div class="callout callout-success">
+    <strong>Remember the format</strong>
+    <code>Category Amount Description</code> — always in this order. Category first, then the number, then optional description.
+</div>
+
+<!-- Wrong category -->
+<h3 id="wrong-category">Category not recognised or wrong category matched</h3>
+<p>If you see:</p>
+<pre><code>Category 'Fuud' not recognised.
+Valid categories: Clothing, Contingency, Education, Food, Maintenance,
+Medical, Renovations, Salaries, Transportation, Utilities</code></pre>
+
+<p>Your spelling was too far from any known category. Resend with the exact name from the list above.</p>
+
+<p>If your expense was filed under the <strong>wrong category</strong> (e.g. "Fooding" matched "Clothing"), contact your site manager to have the UK admin correct it in the system.</p>
+
+<!-- Wrong amount -->
+<h3 id="wrong-amount">Amount converted to wrong GBP value</h3>
+<p>The GBP value depends on the exchange rate stored in the system. If it looks wrong:</p>
+<ul>
+    <li>The exchange rate may be outdated — ask your admin to update it</li>
+    <li>You may have entered the amount in the wrong currency — always use <strong>local currency</strong></li>
+    <li>The admin can edit the expense manually if needed</li>
+</ul>
+
+<!-- No exchange rate -->
+<h3 id="no-exchange-rate">Getting "No exchange rate found" error</h3>
+<p>This means no exchange rate is configured for your site's currency. Contact your admin immediately — they need to add an exchange rate under <strong>Expenses &rarr; Exchange rates</strong> before you can log expenses.</p>
+
+<!-- Receipt issues -->
+<h3 id="receipt-issues">Receipt photo not attached</h3>
+<table>
+    <thead><tr><th>Issue</th><th>Solution</th></tr></thead>
+    <tbody>
+        <tr><td>Sent photo as a separate message</td><td>Attach the photo and put the expense text in the <strong>caption</strong> field, not as a separate message</td></tr>
+        <tr><td>Photo too large</td><td>Take a lower-resolution photo or crop to just the receipt</td></tr>
+        <tr><td>Sent a document instead of photo</td><td>Send as a photo (from camera/gallery), not as a file</td></tr>
+        <tr><td>Confirmation says "Receipt: none"</td><td>The caption was read but the image wasn't processed — resend with the photo properly attached</td></tr>
+    </tbody>
+</table>
+
+<!-- Budget warning -->
+<h3 id="budget-warning">What does the budget warning mean?</h3>
+<p>Budget warnings appear when a category's spending reaches certain thresholds:</p>
+<table>
+    <thead><tr><th>Warning</th><th>Meaning</th><th>Action</th></tr></thead>
+    <tbody>
+        <tr><td><strong>Budget alert: 80%+</strong></td><td>Spending is approaching the annual limit</td><td>Inform your site manager. Be mindful of future spending in this category.</td></tr>
+        <tr><td><strong>BUDGET EXCEEDED: 100%+</strong></td><td>The annual budget has been exceeded</td><td>Inform your site manager immediately. They will liaise with the UK admin.</td></tr>
+    </tbody>
+</table>
+
+<div class="callout callout-success">
+    <strong>Your expense is still saved</strong>
+    Budget warnings are alerts only — they do NOT block your expense. The expense is always recorded.
+</div>
+
+<!-- ============================================================ -->
+<!-- SITE MANAGER ISSUES -->
+<!-- ============================================================ -->
+<h2 id="site-manager-issues">Site Manager Issues</h2>
+
+<h3 id="cant-login">Can't log in to the admin panel</h3>
+<table>
+    <thead><tr><th>Cause</th><th>Solution</th></tr></thead>
+    <tbody>
+        <tr><td>Wrong password</td><td>Ask a UK admin to reset your password</td></tr>
+        <tr><td>Account not active</td><td>Ask a UK admin to check the "Active" checkbox on your user account</td></tr>
+        <tr><td>Staff status not set</td><td>Ask a UK admin to check the "Staff status" checkbox</td></tr>
+        <tr><td>Google SSO not working</td><td>Ensure you're using a <code>@ccdawah.org</code> email. Other domains are not permitted.</td></tr>
+        <tr><td>Browser issue</td><td>Clear cookies, try incognito mode, or try a different browser</td></tr>
+    </tbody>
+</table>
+
+<h3 id="no-expenses-visible">No expenses showing for my site</h3>
+<ul>
+    <li>Check the <strong>date filter</strong> — you may be looking at the wrong month/year</li>
+    <li>Check the <strong>site filter</strong> — make sure your site is selected</li>
+    <li>If no expenses exist yet, your caretakers may not have started sending them</li>
+    <li>If caretakers say they've sent messages but nothing appears, the Celery worker may be down — contact the UK admin</li>
+</ul>
+
+<h3 id="wrong-budget-pct">Budget percentage looks wrong</h3>
+<p>Budget calculations only count expenses with <strong>"logged"</strong> or <strong>"reviewed"</strong> status. Expenses marked as <strong>"queried"</strong> are excluded. This is by design — queried expenses are under investigation and shouldn't count toward the budget until resolved.</p>
+
+<!-- ============================================================ -->
+<!-- ADMIN ISSUES -->
+<!-- ============================================================ -->
+<h2 id="admin-issues">Admin Issues</h2>
+
+<h3 id="no-whatsapp">No expenses appearing from WhatsApp</h3>
+<div class="step"><div class="step-num">1</div><div class="step-body"><strong>Check Celery is running:</strong> SSH into the Celery server and run <code>systemctl status celery</code></div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body"><strong>Check webhook config:</strong> In Meta Developer Console, verify the webhook URL points to <code>/webhooks/whatsapp/</code> and the "messages" field is subscribed</div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body"><strong>Check message logs:</strong> Go to <strong>Messaging &rarr; WhatsApp Messages</strong>. If messages appear here but no expenses are created, the parsing may have failed — check Sentry for errors</div></div>
+<div class="step"><div class="step-num">4</div><div class="step-body"><strong>Check environment variables:</strong> Verify <code>WHATSAPP_ACCESS_TOKEN</code>, <code>WHATSAPP_PHONE_NUMBER_ID</code>, and <code>WHATSAPP_APP_SECRET</code> are set correctly</div></div>
+
+<h3 id="no-telegram">No expenses appearing from Telegram</h3>
+<div class="step"><div class="step-num">1</div><div class="step-body"><strong>Check Celery is running</strong> (same as above)</div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body"><strong>Check webhook registration:</strong> Verify the Telegram webhook is registered by calling <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getWebhookInfo</code></div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body"><strong>Check message logs:</strong> Go to <strong>Messaging &rarr; Telegram Messages</strong></div></div>
+<div class="step"><div class="step-num">4</div><div class="step-body"><strong>Check environment variables:</strong> Verify <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_WEBHOOK_SECRET</code></div></div>
+
+<h3 id="duplicates">Duplicate expenses appearing</h3>
+<p>The system has 3-layer deduplication (Redis, DB check in view, Celery task). Duplicates are very rare, but can occur if:</p>
+<ul>
+    <li>A Celery task was manually retried (e.g. via Flower)</li>
+    <li>Redis was restarted while messages were in flight</li>
+</ul>
+<p><strong>Fix:</strong> Delete the duplicate expense from the admin. Check if the issue is recurring — if so, investigate Redis connectivity.</p>
+
+<h3 id="exchange-rate-wrong">Exchange rate not applying correctly</h3>
+<p>The system uses the <strong>most recent rate on or before the expense date</strong>. If the wrong rate is applied:</p>
+<ul>
+    <li>Check that a rate exists for the correct currency pair with an effective date on or before the expense date</li>
+    <li>If you've just added a rate, it applies to <em>future</em> expenses only — existing expenses keep their original rate</li>
+    <li>You can manually edit an expense's GBP amount if needed</li>
+</ul>
+
+<h3 id="celery-down">Celery worker appears to be down</h3>
+<div class="step"><div class="step-num">1</div><div class="step-body">SSH into the Celery server</div></div>
+<div class="step"><div class="step-num">2</div><div class="step-body">Check status: <code>systemctl status celery</code></div></div>
+<div class="step"><div class="step-num">3</div><div class="step-body">If stopped, restart: <code>sudo systemctl restart celery</code></div></div>
+<div class="step"><div class="step-num">4</div><div class="step-body">Check logs: <code>journalctl -u celery -f</code></div></div>
+<div class="step"><div class="step-num">5</div><div class="step-body">Verify Redis is also running: <code>redis-cli ping</code> should return <code>PONG</code></div></div>
+
+<div class="callout callout-danger">
+    <strong>Messages are not lost</strong>
+    While Celery is down, webhook messages are still received and stored in the database (WhatsApp/Telegram incoming messages). Once Celery is restarted, queued tasks will be processed. However, if Redis was also down, the task queue may have been lost — check message logs for any that weren't processed.
+</div>
+
+<h3 id="sentry-noise">DisallowedHost errors in Sentry</h3>
+<p>Errors like <em>"Invalid HTTP_HOST header: 'random-domain.com'"</em> are caused by bots scanning your server's IP address with random hostnames. These are harmless — Django is correctly rejecting them.</p>
+<p><strong>To reduce noise:</strong> You can filter out <code>DisallowedHost</code> errors in your Sentry configuration. This is cosmetic only — no action is required.</p>
+
+<!-- ============================================================ -->
+<!-- FAQ -->
+<!-- ============================================================ -->
+<h2 id="faq">Frequently Asked Questions</h2>
+
+<h3>Can I send multiple expenses in one message?</h3>
+<p><strong>No.</strong> Send one expense per message. Each message creates one expense record. If you need to log multiple expenses, send them as separate messages.</p>
+
+<h3>What happens if I send an expense on the wrong date?</h3>
+<p>The expense is recorded with the date the message was received. If you need to backdate an expense, contact your admin who can edit the expense date in the admin panel.</p>
+
+<h3>Can I delete or edit an expense I sent?</h3>
+<p><strong>Caretakers cannot edit or delete expenses.</strong> Contact your site manager, who will ask a UK admin to make the correction.</p>
+
+<h3>What currencies are supported?</h3>
+<p>The system supports any currency for which an exchange rate has been configured. Currently active: <strong>UGX</strong> (Uganda), <strong>GMD</strong> (Gambia), <strong>IDR</strong> (Indonesia). New currencies can be added by creating exchange rate records.</p>
+
+<h3>How often should exchange rates be updated?</h3>
+<p>Recommended: <strong>weekly</strong> for volatile currencies, <strong>monthly</strong> for stable ones. The system uses automatic daily updates when an API key is configured, but manual updates are also supported.</p>
+
+<h3>Is there a limit on the expense amount?</h3>
+<p><strong>Yes.</strong> The system rejects amounts that are zero, negative, in scientific notation, or greater than 100,000,000 (100 million) in local currency. This prevents data entry errors.</p>
+
+<h3>What happens if the system goes down?</h3>
+<p>Messages sent while the system is down may not receive a confirmation reply. However, if the webhook endpoint is still receiving requests (even if Celery is down), messages are stored in the database and will be processed when service is restored. If the entire server is unreachable, messages will fail to deliver — caretakers should keep a paper record and resend when service is restored.</p>
+
+<h3>Can caretakers see the admin dashboard?</h3>
+<p><strong>No.</strong> The admin panel and reports dashboard require a login with "Staff" status. Caretakers only interact via WhatsApp or Telegram.</p>
+
+<h3>How do I export data?</h3>
+<p>Most admin list views support export via the <strong>Import/Export</strong> buttons. You can export to CSV or Excel format. The Audit Log also supports export for compliance purposes.</p>
+
+<h3>Who can I contact for technical support?</h3>
+<p>For system issues (server, webhooks, database), contact the UK technical team. For operational issues (budgets, users, categories), contact the UK finance admin. For on-the-ground issues (caretaker problems, format questions), the site manager is the first point of contact.</p>
+{% endblock %}
