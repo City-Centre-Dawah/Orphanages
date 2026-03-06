@@ -255,6 +255,8 @@ GOOGLE_SSO_AUTHENTICATION_BACKEND = "django.contrib.auth.backends.ModelBackend"
 GOOGLE_SSO_CALLBACK_DOMAIN = env(
     "GOOGLE_SSO_CALLBACK_DOMAIN", default="orphanages.ccdawah.org"
 )  # Explicit domain avoids X-Forwarded-Proto duplication issues
+GOOGLE_SSO_LOGIN_FAILED_URL = "admin:login"  # Stay on login page (not admin:index which redirects)
+GOOGLE_SSO_SHOW_FAILED_LOGIN_MESSAGE = True  # Show error messages on failed SSO attempts
 
 # django-unfold admin theme
 UNFOLD = {
