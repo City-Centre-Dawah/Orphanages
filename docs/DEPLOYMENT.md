@@ -6,7 +6,7 @@ Scalable architecture: 2 droplets, managed PostgreSQL, DO Spaces. Designed for 2
 
 - DigitalOcean account
 - Domain pointed to your App droplet IP (for Certbot auto-SSL)
-- Twilio account (WhatsApp Business API)
+- Meta Developer account with WhatsApp Cloud API app (see `docs/WHATSAPP_SETUP_GUIDE.md`)
 - Telegram bot created via @BotFather (for Telegram expense logging)
 - (Optional) Google Cloud project with OAuth2 credentials (for admin SSO)
 - (Optional) WeasyPrint system libraries for PDF report generation
@@ -106,7 +106,7 @@ Scalable architecture: 2 droplets, managed PostgreSQL, DO Spaces. Designed for 2
 2. Same SSH hardening as App droplet
 3. Install: Python 3.11, no nginx/Redis needed
 4. Clone repo, same venv setup
-5. Same `.env` as App (DATABASE_URL, REDIS_URL, CELERY_BROKER_URL, AWS_*, TWILIO_*, TELEGRAM_*)
+5. Same `.env` as App (DATABASE_URL, REDIS_URL, CELERY_BROKER_URL, AWS_*, WHATSAPP_*, TELEGRAM_*)
 6. Redis URL and CELERY_BROKER_URL must point to App droplet's Redis (or managed Redis)
 7. Set up Celery systemd service (`/etc/systemd/system/orphanage-celery.service`):
    ```ini
@@ -149,10 +149,11 @@ AWS_STORAGE_BUCKET_NAME=<bucket-name>
 AWS_S3_REGION_NAME=lon1
 AWS_S3_ENDPOINT_URL=https://lon1.digitaloceanspaces.com
 
-# WhatsApp (Twilio)
-TWILIO_ACCOUNT_SID=<sid>
-TWILIO_AUTH_TOKEN=<token>
-TWILIO_WHATSAPP_WEBHOOK_TOKEN=<custom-webhook-token>
+# WhatsApp (Meta Cloud API — direct, no Twilio)
+WHATSAPP_ACCESS_TOKEN=<permanent-token-from-system-user>
+WHATSAPP_PHONE_NUMBER_ID=<phone-number-id>
+WHATSAPP_APP_SECRET=<app-secret>
+WHATSAPP_VERIFY_TOKEN=<your-chosen-verify-token>
 
 # Telegram Bot
 TELEGRAM_BOT_TOKEN=<bot-token-from-botfather>
@@ -212,7 +213,7 @@ sudo systemctl restart orphanage-celery
 3. Admin: https://orphanages.ccdawah.org/admin/
 4. Reports dashboard: https://orphanages.ccdawah.org/reports/dashboard/
 5. PDF reports: https://orphanages.ccdawah.org/reports/monthly-summary/ and https://orphanages.ccdawah.org/reports/budget-vs-actual/
-6. Webhook (WhatsApp): Configure Twilio webhook URL to `https://orphanages.ccdawah.org/webhooks/whatsapp/`
+6. Webhook (WhatsApp): Configure Meta Developer Dashboard webhook URL to `https://orphanages.ccdawah.org/webhooks/whatsapp/` and subscribe to "messages" field
 7. Webhook (Telegram): Register webhook via Telegram Bot API:
    ```bash
    curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \

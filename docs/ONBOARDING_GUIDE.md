@@ -53,10 +53,12 @@ Before onboarding anyone, confirm these prerequisites:
 
 ### Messaging Channel Prerequisites
 
-**For WhatsApp:**
-- [ ] Twilio account is active and funded
-- [ ] WhatsApp sandbox or production number is configured
-- [ ] Webhook URL is set in Twilio console pointing to `/webhooks/whatsapp/`
+**For WhatsApp (Meta Cloud API — see `docs/WHATSAPP_SETUP_GUIDE.md`):**
+- [ ] Meta Developer account and Meta Business account created
+- [ ] Meta App with WhatsApp product configured
+- [ ] Webhook URL set in Meta Developer Dashboard pointing to `/webhooks/whatsapp/`
+- [ ] "messages" webhook field subscribed
+- [ ] Permanent access token generated via System User
 - [ ] Test message sent and received successfully
 
 **For Telegram:**

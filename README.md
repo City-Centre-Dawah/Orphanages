@@ -37,8 +37,8 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 
 ```
 ┌──────────────────────┐   ┌──────────────────────┐
-│   Twilio WhatsApp     │   │   Telegram Bot API    │
-│   (webhook POST)      │   │   (webhook POST)      │
+│  WhatsApp Cloud API   │   │   Telegram Bot API    │
+│  (Meta webhook POST)  │   │   (webhook POST)      │
 └──────────┬───────────┘   └──────────┬───────────┘
            │                          │
            ▼                          ▼
@@ -101,7 +101,7 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 | Message broker | Redis | 7 |
 | WSGI server | Gunicorn | 21+ |
 | Reverse proxy | Nginx + Certbot | latest (prod) |
-| WhatsApp | Twilio SDK | 8.x |
+| WhatsApp | Meta Cloud API (direct) | v21.0 |
 | Telegram | Bot API (direct HTTP) | — |
 | SMS | Africa's Talking SDK | 2.x |
 | Media storage | DO Spaces (boto3 + django-storages) | S3-compatible |
@@ -139,7 +139,7 @@ Designed for "set and forget for 2 years" — no single-droplet MVP, no future m
 
 - Python 3.11+
 - Docker & Docker Compose (for PostgreSQL + Redis)
-- (Optional) Twilio account for WhatsApp webhook testing
+- (Optional) Meta Developer account for WhatsApp Cloud API testing
 
 ### 1. Clone and create virtual environment
 
@@ -229,7 +229,7 @@ celery -A config worker -l info
 - **Database port is 5433**, not 5432 — avoids conflict with local PostgreSQL
 - **Redis** runs on standard port 6379
 - **Media files** stored locally at `backend/media/` when `USE_SPACES=false`
-- **WhatsApp** signature validation is skipped when `TWILIO_AUTH_TOKEN` is empty (dev convenience)
+- **WhatsApp** signature validation is skipped when `WHATSAPP_APP_SECRET` is empty (dev convenience)
 - **All manage.py commands** run from the `backend/` directory
 
 ---
@@ -301,10 +301,10 @@ Orphanages/
         ├── __init__.py
         ├── apps.py
         ├── models.py                     # WhatsAppIncomingMessage, TelegramIncomingMessage
-        ├── views.py                      # WhatsApp webhook (Twilio)
+        ├── views.py                      # WhatsApp webhook (Meta Cloud API)
         ├── views_telegram.py             # Telegram webhook (Bot API)
         ├── tasks.py                      # Shared parser + per-channel Celery tasks
-        ├── whatsapp_reply.py             # Send replies via Twilio
+        ├── whatsapp_reply.py             # Send replies via Meta Graph API
         ├── telegram_reply.py             # Send replies via Telegram Bot API
         ├── sms.py                        # SMS confirmation via Africa's Talking
         ├── urls.py                       # /whatsapp/ + /telegram/ routes
@@ -418,10 +418,10 @@ ExchangeRate (historical exchange rates)
 
 ```
 WhatsAppIncomingMessage (raw incoming WhatsApp messages for audit)
-├── message_sid (unique, indexed — Twilio's message ID)
+├── message_sid (unique, indexed — Meta's wamid or Twilio's message ID)
 ├── from_number, to_number
 ├── body, media_url
-├── raw_payload (JSONField — full Twilio POST data)
+├── raw_payload (JSONField — full webhook POST data)
 ├── processed_at (null until Celery task completes)
 └── created_at
 
@@ -464,7 +464,7 @@ Organisation ─┬─ Site ──────── Budget
 |--------|------|------|---------|
 | GET | `/admin/` | Django Admin | Full admin dashboard |
 | GET | `/health/` | `core.views.health_check` | DB connectivity check (returns JSON) |
-| POST | `/webhooks/whatsapp/` | `webhooks.views.whatsapp_webhook` | Twilio WhatsApp webhook |
+| POST | `/webhooks/whatsapp/` | `webhooks.views.whatsapp_webhook` | WhatsApp Cloud API webhook |
 | POST | `/webhooks/telegram/` | `webhooks.views_telegram.telegram_webhook` | Telegram Bot webhook |
 | GET | `/reports/dashboard/` | `reports.views.dashboard` | Interactive Chart.js dashboard |
 | GET | `/reports/monthly-summary/` | `reports.views.monthly_summary_pdf` | Monthly expense summary (HTML/PDF) |
@@ -487,9 +487,9 @@ Organisation ─┬─ Site ──────── Budget
 
 ### WhatsApp Webhook
 
-Receives Twilio form-encoded POST data. Flow:
+Receives Meta Cloud API JSON webhook. Flow:
 
-1. Validate `X-Twilio-Signature` header (HMAC-SHA1)
+1. Validate `X-Hub-Signature-256` header (HMAC-SHA256 with App Secret)
 2. Check Redis for duplicate `MessageSid` (24h idempotency window)
 3. Store raw message in `WhatsAppIncomingMessage`
 4. Queue Celery task `process_whatsapp_message`
@@ -553,9 +553,9 @@ Caretaker's Phone                    System
        │──────────────────────────────▶│
        │                               │
        │                     ┌─────────┴──────────┐
-       │                     │ 1. Twilio receives  │
+       │                     │ 1. Meta sends JSON   │
        │                     │ 2. POST to webhook  │
-       │                     │ 3. Validate signature│
+       │                     │ 3. Validate HMAC    │
        │                     │ 4. Check Redis       │
        │                     │    (idempotency)     │
        │                     │ 5. Store raw message │
@@ -593,23 +593,25 @@ Caretaker's Phone                    System
 - **User resolution** — WhatsApp: by phone number. Telegram: by `telegram_username` or `telegram_id`
 - **Currency** determined by the user's site (`default_currency`)
 - **Exchange rate** fetched from `ExchangeRate` table, latest `effective_date`
-- **Receipt photos** downloaded from Twilio media URL (WhatsApp) or Telegram `getFile` API, stored in DO Spaces or local filesystem
+- **Receipt photos** downloaded from Meta media endpoint (WhatsApp) or Telegram `getFile` API, stored in DO Spaces or local filesystem
 - **Idempotency** — three layers: Redis (fast, 24h TTL), DB check in view (durable), DB check in task (durable)
 - **Error feedback** — validation failures send helpful replies back to the user with examples and category lists
 - **Success confirmation** — logged expenses get a confirmation reply with amount, category, GBP conversion, and ref number
 
-### WhatsApp Configuration (Twilio)
+### WhatsApp Configuration (Meta Cloud API)
 
-1. Create a Twilio account and enable WhatsApp Business API
+1. Create a Meta Developer account, Meta Business account, and Meta App with WhatsApp product
 2. Set the webhook URL to `https://yourdomain.com/webhooks/whatsapp/`
 3. Add credentials to `.env`:
 
 ```env
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=your_auth_token_here
+WHATSAPP_ACCESS_TOKEN=your-permanent-token
+WHATSAPP_PHONE_NUMBER_ID=your-phone-number-id
+WHATSAPP_APP_SECRET=your-app-secret
+WHATSAPP_VERIFY_TOKEN=your-chosen-verify-token
 ```
 
-In local development, leave `TWILIO_AUTH_TOKEN` empty to skip signature validation.
+In local development, leave `WHATSAPP_APP_SECRET` empty to skip signature validation. See `docs/WHATSAPP_SETUP_GUIDE.md` for the full step-by-step setup.
 
 ### Telegram Configuration
 
@@ -763,9 +765,10 @@ All configuration is loaded from a `.env` file at the **repo root** (not inside 
 | `AWS_STORAGE_BUCKET_NAME` | `""` | If USE_SPACES | DO Spaces bucket name |
 | `AWS_S3_REGION_NAME` | `lon1` | No | DO Spaces region |
 | `AWS_S3_ENDPOINT_URL` | `https://lon1.digitaloceanspaces.com` | No | DO Spaces endpoint |
-| `TWILIO_ACCOUNT_SID` | `""` | For WhatsApp | Twilio Account SID |
-| `TWILIO_AUTH_TOKEN` | `""` | For WhatsApp | Twilio Auth Token (skips validation if empty) |
-| `TWILIO_WHATSAPP_WEBHOOK_TOKEN` | `""` | For WhatsApp | Additional webhook token |
+| `WHATSAPP_ACCESS_TOKEN` | `""` | For WhatsApp | Meta Cloud API access token (permanent via System User) |
+| `WHATSAPP_PHONE_NUMBER_ID` | `""` | For WhatsApp | Meta phone number ID for sending replies |
+| `WHATSAPP_APP_SECRET` | `""` | For WhatsApp | HMAC-SHA256 webhook signature validation (skips if empty) |
+| `WHATSAPP_VERIFY_TOKEN` | `""` | For WhatsApp | Webhook verification challenge token |
 | `TELEGRAM_BOT_TOKEN` | `""` | For Telegram | Bot token from @BotFather |
 | `TELEGRAM_WEBHOOK_SECRET` | `""` | For Telegram | Secret for webhook validation |
 | `GOOGLE_OAUTH_CLIENT_ID` | `""` | For Google SSO | Google Cloud OAuth2 client ID |
@@ -801,8 +804,10 @@ AWS_ACCESS_KEY_ID=<spaces-key>
 AWS_SECRET_ACCESS_KEY=<spaces-secret>
 AWS_STORAGE_BUCKET_NAME=<bucket-name>
 
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=<token>
+WHATSAPP_ACCESS_TOKEN=<permanent-token-from-system-user>
+WHATSAPP_PHONE_NUMBER_ID=<phone-number-id>
+WHATSAPP_APP_SECRET=<app-secret>
+WHATSAPP_VERIFY_TOKEN=<your-chosen-verify-token>
 ```
 
 ---
@@ -994,7 +999,7 @@ python manage.py collectstatic
 
 ### 4. Celery Droplet (1GB, ~£10/mo)
 
-Same Python/env as app droplet. Same `.env` (DATABASE_URL, REDIS_URL, CELERY_BROKER_URL, AWS_*, TWILIO_*, TELEGRAM_*).
+Same Python/env as app droplet. Same `.env` (DATABASE_URL, REDIS_URL, CELERY_BROKER_URL, AWS_*, WHATSAPP_*, TELEGRAM_*).
 
 **systemd:** `orphanage-celery` → `celery -A config worker -l info`
 
@@ -1011,7 +1016,7 @@ curl https://yourdomain.com/health/
 open https://yourdomain.com/admin/
 
 # WhatsApp webhook
-# Configure Twilio to POST to https://yourdomain.com/webhooks/whatsapp/
+# Configure Meta webhook to POST to https://yourdomain.com/webhooks/whatsapp/
 
 # Telegram webhook
 # Register via: curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
@@ -1075,7 +1080,7 @@ The system is rolled out in phases so caretakers and admins have time to become 
 - [x] Django project with 13 models across 4 apps (core, expenses, webhooks, reports)
 - [x] Django Admin with expense review, budget vs actual, filters, bulk actions
 - [x] Seed data command (categories, sites, exchange rates from workbook)
-- [x] WhatsApp webhook with Twilio signature validation + 3-layer idempotency
+- [x] WhatsApp webhook with Meta HMAC-SHA256 signature validation + 3-layer idempotency
 - [x] Telegram Bot webhook with secret token validation + 3-layer idempotency
 - [x] Shared Celery pipeline: message parsing, fuzzy category matching, currency conversion, expense creation
 - [x] REST API at `/api/v1/` (sites, categories, expenses, sync) with token auth
@@ -1103,7 +1108,7 @@ The system is rolled out in phases so caretakers and admins have time to become 
 | **Automated exchange rates** | Scheduled Celery task to fetch rates from external API |
 | **Integration tests** | End-to-end tests with mocked WhatsApp/Telegram providers |
 | **CI/CD pipeline** | GitHub Actions for tests, linting, and deployment |
-| **Meta Cloud API migration** | Replace Twilio with free direct WhatsApp API |
+| **Meta Cloud API migration** | ~~Replace Twilio~~ Done — using Meta Cloud API directly |
 
 ---
 
