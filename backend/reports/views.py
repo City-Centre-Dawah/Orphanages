@@ -18,6 +18,18 @@ from core.models import Site
 from expenses.models import Expense, SiteBudget
 
 
+def _sites_for_user(user):
+    """Return the site queryset visible to a user.
+
+    Superusers and admins (no site assigned) see all active sites.
+    Site managers see only their assigned site.
+    """
+    qs = Site.objects.filter(is_active=True).order_by("name")
+    if not user.is_superuser and hasattr(user, "site") and user.site:
+        qs = qs.filter(id=user.site_id)
+    return qs
+
+
 def _decimal_default(obj):
     """JSON serialiser for Decimal."""
     if isinstance(obj, Decimal):
@@ -40,7 +52,7 @@ def monthly_summary_pdf(request):
     year = request.GET.get("year")
     month = request.GET.get("month")
 
-    sites = Site.objects.filter(is_active=True).order_by("name")
+    sites = _sites_for_user(request.user)
 
     if not all([site_id, year, month]):
         return render(request, "reports/monthly_summary_form.html", {
@@ -129,7 +141,7 @@ def budget_vs_actual_pdf(request):
     site_id = request.GET.get("site")
     year = request.GET.get("year")
 
-    sites = Site.objects.filter(is_active=True).order_by("name")
+    sites = _sites_for_user(request.user)
 
     if not all([site_id, year]):
         return render(request, "reports/budget_vs_actual_form.html", {
@@ -233,7 +245,7 @@ def dashboard(request):
     site_id = request.GET.get("site", "")
     year = int(request.GET.get("year", date.today().year))
 
-    sites = Site.objects.filter(is_active=True).order_by("name")
+    sites = _sites_for_user(request.user)
 
     # Base expense queryset
     expense_qs = Expense.objects.filter(
@@ -242,6 +254,8 @@ def dashboard(request):
     )
     if site_id:
         expense_qs = expense_qs.filter(site_id=site_id)
+    elif not request.user.is_superuser and hasattr(request.user, "site") and request.user.site:
+        expense_qs = expense_qs.filter(site=request.user.site)
 
     # --- Monthly spending trend (line chart) ---
     monthly_data = (
