@@ -100,6 +100,7 @@ INSTALLED_APPS = [
     "webhooks",
     "api",
     "reports",
+    "docs",
     # Google SSO for admin login — must be AFTER core so it extends our UserAdmin
     "django_google_sso",
 ]
@@ -396,6 +397,26 @@ UNFOLD = {
                         "title": "Telegram Messages",
                         "icon": "send",
                         "link": "/admin/webhooks/telegramincomingmessage/",
+                    },
+                ],
+            },
+            {
+                "title": "Help & Guides",
+                "items": [
+                    {
+                        "title": "User Manual",
+                        "icon": "menu_book",
+                        "link": "/docs/user-manual/",
+                    },
+                    {
+                        "title": "Onboarding Guide",
+                        "icon": "school",
+                        "link": "/docs/onboarding/",
+                    },
+                    {
+                        "title": "Troubleshooting & FAQ",
+                        "icon": "help_outline",
+                        "link": "/docs/troubleshooting/",
                     },
                 ],
             },
