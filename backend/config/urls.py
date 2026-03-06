@@ -12,7 +12,7 @@ from django.urls import include, path
 
 def landing_page(request):
     """Public landing page with OG meta tags for social card previews."""
-    return render(request, "landing.html", {"site_url": settings.SITE_URL.rstrip("/")})
+    return render(request, "landing.html")
 
 
 urlpatterns = [
