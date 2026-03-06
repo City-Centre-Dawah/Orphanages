@@ -59,6 +59,9 @@ CSRF_TRUSTED_ORIGINS = [
     "https://*.orphanages.ccdawah.org",
 ]
 
+# Site URL for OG meta tags (absolute URLs required for social card previews)
+SITE_URL = env("SITE_URL", default="https://orphanages.ccdawah.org")
+
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
