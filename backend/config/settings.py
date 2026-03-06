@@ -107,7 +107,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "core.middleware.SSODebugMiddleware",  # TODO: remove after SSO is confirmed working
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -216,7 +215,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Twilio (WhatsApp webhook)
 TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="")
 TWILIO_AUTH_TOKEN = env("TWILIO_AUTH_TOKEN", default="")
-TWILIO_WHATSAPP_WEBHOOK_TOKEN = env("TWILIO_WHATSAPP_WEBHOOK_TOKEN", default="")
 
 # Telegram Bot (expense logging via Telegram)
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")

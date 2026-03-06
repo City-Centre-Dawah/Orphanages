@@ -91,6 +91,9 @@ def _check_budget_guardrail(expense):
     if not budget or not budget.annual_amount or budget.annual_amount <= 0:
         return
 
+    # Only count "logged" and "reviewed" expenses toward budget usage.
+    # "queried" expenses are intentionally excluded — they are under question
+    # and should not count toward spend until resolved.
     total_spend = Expense.objects.filter(
         site=site,
         category=category,

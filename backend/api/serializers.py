@@ -51,9 +51,11 @@ class ExpenseSerializer(serializers.ModelSerializer):
             "status",
             "channel",
             "receipt_photo",
+            "reviewed_by",
+            "reviewed_at",
             "created_at",
         ]
-        read_only_fields = ["created_at"]
+        read_only_fields = ["created_at", "reviewed_by", "reviewed_at"]
 
 
 class ExpenseCreateSerializer(serializers.ModelSerializer):

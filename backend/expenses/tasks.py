@@ -62,8 +62,8 @@ def update_exchange_rates():
             continue
 
         _, created = ExchangeRate.objects.update_or_create(
-            from_currency=currency,
-            to_currency="GBP",
+            local_currency=currency,
+            base_currency="GBP",
             effective_date=today,
             defaults={
                 "rate": rate_value,
