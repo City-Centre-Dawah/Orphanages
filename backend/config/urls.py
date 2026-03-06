@@ -6,11 +6,17 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.http import HttpResponse
+from django.shortcuts import render
 from django.urls import include, path
-from django.views.generic import RedirectView
+
+
+def landing_page(request):
+    """Public landing page with OG meta tags for social card previews."""
+    return render(request, "landing.html", {"site_url": settings.SITE_URL.rstrip("/")})
+
 
 urlpatterns = [
-    path("", RedirectView.as_view(url="/admin/", permanent=False)),
+    path("", landing_page, name="landing"),
     path(
         "robots.txt",
         lambda request: HttpResponse(

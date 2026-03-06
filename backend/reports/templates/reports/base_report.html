@@ -4,6 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}CCD Reports{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+
+    <!-- Primary Meta Tags -->
+    <meta name="description" content="Expense management for CCD orphanages in Uganda, Gambia &amp; Indonesia">
+    <meta name="theme-color" content="#982b2e">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{% block og_title %}CCD Orphanage Portal{% endblock %}">
+    <meta property="og:description" content="Expense management for CCD orphanages in Uganda, Gambia &amp; Indonesia">
+    <meta property="og:image" content="/static/img/og-card.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="City Centre Dawah">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{% block twitter_title %}CCD Orphanage Portal{% endblock %}">
+    <meta name="twitter:description" content="Expense management for CCD orphanages in Uganda, Gambia &amp; Indonesia">
+    <meta name="twitter:image" content="/static/img/og-card.png">
+
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -75,9 +96,40 @@
         .btn-outline:hover { background: #fdf2f2; }
         .total-row td { font-weight: 700; background: #fdf2f2; border-top: 2px solid #982b2e; }
         .error { background: #fecaca; color: #991b1b; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; }
+        /* Responsive table wrapper — prevents horizontal page overflow */
+        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+        /* Mobile header rows (title + buttons) */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .page-header h1 { font-size: 1.5rem; color: #982b2e; margin: 0; }
+        .page-header .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
         @media (max-width: 768px) {
             .form-row { flex-direction: column; }
-            .navbar { flex-direction: column; gap: 0.5rem; }
+            .navbar { flex-direction: column; gap: 0.5rem; text-align: center; }
+            .navbar div { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25rem; }
+            .navbar a { margin-left: 0; padding: 0.25rem 0.5rem; }
+            .container { padding: 0 0.75rem; margin: 1rem auto; }
+            .card { padding: 1rem; border-radius: 8px; }
+            table { font-size: 0.8rem; }
+            th, td { padding: 0.5rem 0.5rem; }
+            .page-header { flex-direction: column; align-items: flex-start; }
+            .page-header .actions { width: 100%; }
+            .page-header .actions .btn { flex: 1; text-align: center; }
+            .btn { padding: 0.5rem 1rem; font-size: 0.85rem; }
+        }
+        @media (max-width: 480px) {
+            .navbar h1 { font-size: 1rem; }
+            .stat-value { font-size: 1.5rem; }
+            table { font-size: 0.75rem; }
+            th, td { padding: 0.4rem 0.35rem; }
         }
     </style>
     {% block extra_head %}{% endblock %}

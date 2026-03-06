@@ -3,11 +3,11 @@
 {% block title %}Monthly Summary: {{ site.name }} — {{ month_name }}{% endblock %}
 
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-    <h1 style="font-size:1.5rem;color:#982b2e;">Monthly Summary: {{ site.name }}</h1>
-    <div>
+<div class="page-header">
+    <h1>Monthly Summary: {{ site.name }}</h1>
+    <div class="actions">
         <a href="?site={{ site.id }}&year={{ year }}&month={{ month }}&format=pdf" class="btn btn-primary">Download PDF</a>
-        <a href="/reports/monthly-summary/" class="btn btn-outline" style="margin-left:0.5rem;">Back</a>
+        <a href="/reports/monthly-summary/" class="btn btn-outline">Back</a>
     </div>
 </div>
 
@@ -15,6 +15,7 @@
     <h2>{{ month_name }} — {{ site.name }} ({{ site.country }})</h2>
 
     <h3 style="margin:1rem 0 0.5rem;font-size:0.95rem;color:#374151;">Summary by Category</h3>
+    <div class="table-responsive">
     <table>
         <thead>
             <tr>
@@ -42,10 +43,12 @@
             {% endif %}
         </tbody>
     </table>
+    </div>
 </div>
 
 <div class="card">
     <h2>Expense Detail</h2>
+    <div class="table-responsive">
     <table>
         <thead>
             <tr>
@@ -74,5 +77,6 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
 </div>
 {% endblock %}
