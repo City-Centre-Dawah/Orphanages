@@ -4,7 +4,7 @@
 
 **What this does:** When you're finished, caretakers at orphanages in Uganda, Gambia, and Indonesia will be able to send a WhatsApp message like `Food 50000 rice Kalerwe` and the system will automatically log that expense, convert the currency to GBP, and notify the admin team.
 
-**We are using Meta's WhatsApp Cloud API directly** — no Twilio, no middleman. This means **zero cost** for our use case (caretakers message us, we reply within 24 hours).
+**We are using Meta's WhatsApp Cloud API directly.** This means **zero cost** for our use case (caretakers message us, we reply within 24 hours).
 
 **Time needed:** About 2-3 hours of setup work, plus 1-7 business days waiting for Meta to verify the business.
 
@@ -56,7 +56,7 @@ Caretaker's Phone (WhatsApp)
     Meta (WhatsApp Cloud servers)
         |
         | sends a JSON webhook POST directly to...
-        |  (no Twilio, no middleman)
+        |  (direct, no middleman)
         ▼
     Our Django Server (/webhooks/whatsapp/)
         |
@@ -106,7 +106,7 @@ Before you touch anything, make sure you have:
 
 **You do NOT need:**
 - A credit card (the Cloud API is free for our use case)
-- A Twilio account
+
 - A Facebook Page
 
 If the Django app isn't set up yet, follow `docs/SETUP_GUIDE.md` first, then come back here.
@@ -394,7 +394,7 @@ nano /path/to/Orphanages/.env
 Find the WhatsApp section (or add at the bottom):
 
 ```env
-# WhatsApp Cloud API (Meta Direct — no Twilio)
+# WhatsApp Cloud API (Meta Direct)
 WHATSAPP_ACCESS_TOKEN=your-access-token-from-step-5
 WHATSAPP_PHONE_NUMBER_ID=your-phone-number-id-from-step-6
 WHATSAPP_BUSINESS_ACCOUNT_ID=your-business-account-id-from-step-6
@@ -411,16 +411,6 @@ Here's what each one is:
 | `WHATSAPP_BUSINESS_ACCOUNT_ID` | Step 6 (API Setup) | Number like `987654321098765` |
 | `WHATSAPP_APP_SECRET` | Step 3 (App Settings → Basic) | 32-character hex string |
 | `WHATSAPP_VERIFY_TOKEN` | Step 9a (you made this up) | Your chosen string |
-
-### Comment Out or Remove Twilio Variables
-
-Since we're not using Twilio:
-
-```env
-# Twilio (not used — using Meta Cloud API directly)
-# TWILIO_ACCOUNT_SID=
-# TWILIO_AUTH_TOKEN=
-```
 
 ### Save and Restart
 
@@ -930,7 +920,7 @@ Content-Type: application/json
 
 ### Total: $0/month
 
-Compare: Twilio would cost ~$3/month. Not much, but $0 is better.
+No middleman fees — direct connection to Meta's free Cloud API.
 
 ---
 
@@ -993,7 +983,7 @@ Compare: Twilio would cost ~$3/month. Not much, but $0 is better.
 
 **Server Configuration:**
 - [ ] All 5 `WHATSAPP_*` variables set in `.env`
-- [ ] Twilio variables commented out
+
 - [ ] Django restarted
 - [ ] Redis running (`redis-cli ping` → `PONG`)
 - [ ] Celery running (`ready` in terminal)
@@ -1016,17 +1006,16 @@ Compare: Twilio would cost ~$3/month. Not much, but $0 is better.
 
 ---
 
-## Code Changes Required
+## Code Architecture
 
-The current codebase uses Twilio for WhatsApp. To switch to Meta Cloud API direct, these files need updating:
+The WhatsApp integration uses Meta's Cloud API directly (no third-party SDK):
 
-| File | What Changes | Why |
-|------|-------------|-----|
-| `webhooks/views.py` | Rewrite webhook handler | Meta sends JSON (not form-data), uses HMAC-SHA256 (not Twilio signature), needs GET verification endpoint |
-| `webhooks/whatsapp_reply.py` | Rewrite reply function | Send via Graph API `POST https://graph.facebook.com/v21.0/{phone_number_id}/messages` instead of Twilio |
-| `webhooks/tasks.py` | Minor: media handling | Meta gives media IDs, need to exchange for download URL via Graph API call |
-| `config/settings.py` | Add new env vars | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` |
-| `.env` / `.env.example` | Replace Twilio vars | `TWILIO_*` → `WHATSAPP_*` |
-| `requirements.txt` | Remove `twilio` | Use `requests` (already installed) instead |
+| File | Purpose |
+|------|---------|
+| `webhooks/views.py` | Webhook handler — GET verification handshake + POST message processing with HMAC-SHA256 signature validation |
+| `webhooks/whatsapp_reply.py` | Send replies via Graph API `POST https://graph.facebook.com/v21.0/{phone_number_id}/messages` + media URL resolution |
+| `webhooks/tasks.py` | Celery task — parses messages, creates expenses, sends confirmations |
+| `webhooks/models.py` | `WhatsAppIncomingMessage` — raw audit trail for every incoming message |
+| `config/settings.py` | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` |
 
-**Everything else stays the same:** Celery tasks, expense models, currency conversion, fuzzy matching, budget guardrails, receipt storage, admin views — all already provider-agnostic.
+**Provider-agnostic core:** Celery tasks, expense models, currency conversion, fuzzy matching, budget guardrails, receipt storage, and admin views are all shared between WhatsApp and Telegram channels.

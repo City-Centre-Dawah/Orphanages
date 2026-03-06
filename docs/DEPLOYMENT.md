@@ -149,7 +149,7 @@ AWS_STORAGE_BUCKET_NAME=<bucket-name>
 AWS_S3_REGION_NAME=lon1
 AWS_S3_ENDPOINT_URL=https://lon1.digitaloceanspaces.com
 
-# WhatsApp (Meta Cloud API — direct, no Twilio)
+# WhatsApp (Meta Cloud API)
 WHATSAPP_ACCESS_TOKEN=<permanent-token-from-system-user>
 WHATSAPP_PHONE_NUMBER_ID=<phone-number-id>
 WHATSAPP_APP_SECRET=<app-secret>

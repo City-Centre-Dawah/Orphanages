@@ -596,7 +596,7 @@ A REST API exists for the planned Flutter mobile app. It uses token authenticati
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| No expenses appearing from WhatsApp | Twilio webhook not configured or Celery not running | Check Celery worker is running, verify Twilio webhook URL |
+| No expenses appearing from WhatsApp | WhatsApp webhook not configured or Celery not running | Check Celery worker is running, verify Meta webhook URL in developer console |
 | No expenses appearing from Telegram | Bot webhook not set or Celery not running | Verify Telegram webhook is registered, check Celery worker |
 | Budget % shows wrong number | Expenses may be in "queried" status (excluded from calculation) | Budget calculation counts "logged" and "reviewed" only |
 | Exchange rate not applying | No rate for that currency on or before expense date | Add an exchange rate with an earlier effective date |

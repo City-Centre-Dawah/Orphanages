@@ -418,7 +418,7 @@ ExchangeRate (historical exchange rates)
 
 ```
 WhatsAppIncomingMessage (raw incoming WhatsApp messages for audit)
-├── message_sid (unique, indexed — Meta's wamid or Twilio's message ID)
+├── message_sid (unique, indexed — Meta's wamid message ID)
 ├── from_number, to_number
 ├── body, media_url
 ├── raw_payload (JSONField — full webhook POST data)
@@ -1108,7 +1108,7 @@ The system is rolled out in phases so caretakers and admins have time to become 
 | **Automated exchange rates** | Scheduled Celery task to fetch rates from external API |
 | **Integration tests** | End-to-end tests with mocked WhatsApp/Telegram providers |
 | **CI/CD pipeline** | GitHub Actions for tests, linting, and deployment |
-| **Meta Cloud API migration** | ~~Replace Twilio~~ Done — using Meta Cloud API directly |
+| **Meta Cloud API migration** | Done — using Meta Cloud API directly |
 
 ---
 

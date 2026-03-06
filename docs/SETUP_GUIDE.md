@@ -1023,10 +1023,10 @@ Here is what happens when a caretaker sends a WhatsApp message:
 
 ```
 1. Caretaker sends "Food 50000 rice Kalerwe" to the WhatsApp Business number
-2. Twilio receives the message
-3. Twilio sends a POST request to https://yourdomain.com/webhooks/whatsapp/
+2. Meta Cloud API receives the message
+3. Meta sends a POST request to https://yourdomain.com/webhooks/whatsapp/
 4. Django's webhook view:
-   a. Validates the Twilio signature
+   a. Validates the HMAC-SHA256 signature
    b. Checks Redis — has this message been processed before? (24h dedup)
    c. Saves the raw message to WhatsAppIncomingMessage table
    d. Queues a Celery task and returns HTTP 200 immediately
@@ -1061,9 +1061,9 @@ For WhatsApp messages to create expenses, the sender's phone number must match a
 
 ---
 
-### Step 6.6 — Simulate a WhatsApp message (without Twilio)
+### Step 6.6 — Simulate a WhatsApp message (without Meta webhook)
 
-Since you probably don't have Twilio set up yet, you can test the Celery task directly using Django's shell. Open a **third terminal** (or use the Django server terminal briefly by pressing `Ctrl+C` to stop it, then running the shell):
+Since you may not have the Meta webhook set up yet, you can test the Celery task directly using Django's shell. Open a **third terminal** (or use the Django server terminal briefly by pressing `Ctrl+C` to stop it, then running the shell):
 
 ```
 $ cd ~/Orphanages
@@ -1080,11 +1080,10 @@ from webhooks.tasks import process_whatsapp_message
 # Simulate a WhatsApp message from the caretaker
 result = process_whatsapp_message.delay(
     message_sid="test_msg_001",
-    from_number="+256700123456",
-    to_number="+447000000000",
+    from_number="256700123456",
     body="Food 50000 rice Kalerwe market",
-    media_url="",
-    raw_post={"MessageSid": "test_msg_001", "Body": "Food 50000 rice Kalerwe market"}
+    media_id="",
+    raw_post={"object": "whatsapp_business_account"}
 )
 
 print(f"Task queued: {result.id}")
