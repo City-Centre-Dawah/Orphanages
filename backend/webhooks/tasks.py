@@ -3,7 +3,7 @@ Celery tasks for webhook processing.
 
 Parse incoming message (e.g. "Food 50000 rice Kalerwe"), resolve category
 (with fuzzy matching), convert currency, create Expense, fetch receipt photo.
-Supports WhatsApp (Twilio) and Telegram Bot API channels.
+Supports WhatsApp (Meta Cloud API) and Telegram Bot API channels.
 """
 
 import difflib
@@ -118,14 +118,39 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
         return None
 
     category_name = parts[0]
+    raw_amount = parts[1].replace(",", "")
+
+    # Reject scientific notation (e.g. "1e5", "2E3") — require plain numbers only
+    if "e" in raw_amount.lower():
+        logger.warning("Scientific notation rejected: %s", raw_amount)
+        reply_fn(
+            f"Please use plain numbers, not scientific notation.\n"
+            f"Example: Food 50000 rice Kalerwe"
+        )
+        return None
+
     try:
-        amount_local = Decimal(parts[1].replace(",", ""))
+        amount_local = Decimal(raw_amount)
     except (ValueError, InvalidOperation):
         logger.warning("Invalid amount in message: %s", body[:50])
         reply_fn(
             f"Amount must be a number.\n"
             f"Example: Food 50000 rice Kalerwe\n"
             f"You sent: {body[:100]}"
+        )
+        return None
+
+    # Reject zero, negative, and unreasonably large amounts
+    if amount_local <= 0:
+        logger.warning("Non-positive amount rejected: %s", amount_local)
+        reply_fn("Amount must be greater than zero.")
+        return None
+
+    if amount_local > Decimal("100000000"):
+        logger.warning("Unreasonably large amount rejected: %s", amount_local)
+        reply_fn(
+            f"Amount {amount_local:,} seems too large.\n"
+            f"Please check and resend."
         )
         return None
 
@@ -177,13 +202,23 @@ def _parse_and_create_expense(body, from_identifier, media_url, channel, message
             amount_gbp = amount_local / rate.rate
             exchange_rate_used = rate.rate
         else:
-            logger.warning("No exchange rate for %s, using 1:1", local_currency)
+            logger.error("No exchange rate for %s — rejecting expense", local_currency)
+            reply_fn(
+                f"No exchange rate found for {local_currency}.\n"
+                f"Contact your admin to update exchange rates before logging expenses."
+            )
+            return None
 
     # --- Fetch receipt photo ---
     receipt_file = None
     if media_url:
         try:
-            resp = http_requests.get(media_url, timeout=10)
+            # Meta media URLs require Bearer token; Telegram URLs are public
+            headers = {}
+            if "graph.facebook.com" in media_url:
+                from django.conf import settings as django_settings
+                headers["Authorization"] = f"Bearer {django_settings.WHATSAPP_ACCESS_TOKEN}"
+            resp = http_requests.get(media_url, headers=headers, timeout=10)
             if resp.status_code == 200:
                 filename = f"{channel}_{message_ref}.jpg"
                 receipt_file = ContentFile(resp.content, name=filename)
@@ -335,25 +370,30 @@ def process_whatsapp_message(
     self,
     message_sid,
     from_number,
-    to_number,
     body,
-    media_url="",
+    media_id="",
     raw_post=None,
 ):
     """
-    Process incoming WhatsApp message and create Expense if valid.
+    Process incoming WhatsApp message (Meta Cloud API) and create Expense if valid.
     Expected format: "Category Amount [description]"
     """
     from webhooks.models import WhatsAppIncomingMessage
+    from webhooks.whatsapp_reply import get_whatsapp_media_url
 
     raw_post = raw_post or {}
+
+    # Resolve media URL from Meta media_id (requires Graph API call)
+    media_url = ""
+    if media_id:
+        media_url = get_whatsapp_media_url(media_id)
 
     # Store raw message for audit
     msg, created = WhatsAppIncomingMessage.objects.update_or_create(
         message_sid=message_sid,
         defaults={
             "from_number": from_number,
-            "to_number": to_number,
+            "to_number": "",
             "body": body,
             "media_url": media_url,
             "raw_payload": raw_post,
@@ -365,7 +405,7 @@ def process_whatsapp_message(
         return
 
     def _reply(text):
-        send_whatsapp_reply(to_number, from_number, text)
+        send_whatsapp_reply(from_number, text)
 
     expense = _parse_and_create_expense(
         body=body,

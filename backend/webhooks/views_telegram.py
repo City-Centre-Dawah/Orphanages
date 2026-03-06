@@ -31,9 +31,14 @@ def telegram_webhook(request):
     """
     from webhooks.tasks import process_telegram_message
 
-    # Validate secret token (set when registering webhook with setWebhook)
+    # In production, TELEGRAM_WEBHOOK_SECRET must be set — reject all requests without it
     secret = getattr(settings, "TELEGRAM_WEBHOOK_SECRET", "")
-    if secret:
+    if not secret:
+        if not settings.DEBUG:
+            logger.error("Telegram webhook: TELEGRAM_WEBHOOK_SECRET not configured in production")
+            return HttpResponse("Server configuration error", status=503)
+        logger.warning("Telegram webhook: no secret configured (dev mode)")
+    else:
         header_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
         if not header_secret or header_secret != secret:
             logger.warning("Telegram webhook: invalid or missing secret token")

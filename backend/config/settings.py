@@ -9,6 +9,7 @@ from pathlib import Path
 
 import environ
 import os
+import sentry_sdk
 
 # Build paths
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,13 +23,16 @@ env = environ.Env(
     DATABASE_URL=(str, "postgres://orphanage_user:orphanage_pass@localhost:5433/orphanage_db"),
     REDIS_URL=(str, "redis://localhost:6379/0"),
     CELERY_BROKER_URL=(str, "redis://localhost:6379/1"),
-    TWILIO_AUTH_TOKEN=(str, ""),
-    TWILIO_ACCOUNT_SID=(str, ""),
+    WHATSAPP_PHONE_NUMBER_ID=(str, ""),
+    WHATSAPP_ACCESS_TOKEN=(str, ""),
+    WHATSAPP_APP_SECRET=(str, ""),
+    WHATSAPP_VERIFY_TOKEN=(str, ""),
     AFRICAS_TALKING_USERNAME=(str, "sandbox"),
     AFRICAS_TALKING_API_KEY=(str, ""),
     TELEGRAM_BOT_TOKEN=(str, ""),
     TELEGRAM_WEBHOOK_SECRET=(str, ""),
     EXCHANGE_RATE_API_KEY=(str, ""),
+    SENTRY_DSN=(str, ""),
     GOOGLE_OAUTH_CLIENT_ID=(str, ""),
     GOOGLE_OAUTH_CLIENT_SECRET=(str, ""),
     # DO Spaces (S3-compatible) — leave empty for local filesystem
@@ -189,7 +193,7 @@ if USE_SPACES and env("AWS_ACCESS_KEY_ID") and env("AWS_STORAGE_BUCKET_NAME"):
      	 	"location": "media",
         	"file_overwrite": False,
         	"default_acl": None,
-        	"querystring_auth": False,
+        	"querystring_auth": True,
                 "object_parameters": {"CacheControl": "max-age=86400"},
             },
         },
@@ -215,9 +219,11 @@ else:
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-# Twilio (WhatsApp webhook)
-TWILIO_ACCOUNT_SID = env("TWILIO_ACCOUNT_SID", default="")
-TWILIO_AUTH_TOKEN = env("TWILIO_AUTH_TOKEN", default="")
+# WhatsApp Cloud API (Meta direct)
+WHATSAPP_PHONE_NUMBER_ID = env("WHATSAPP_PHONE_NUMBER_ID", default="")
+WHATSAPP_ACCESS_TOKEN = env("WHATSAPP_ACCESS_TOKEN", default="")
+WHATSAPP_APP_SECRET = env("WHATSAPP_APP_SECRET", default="")
+WHATSAPP_VERIFY_TOKEN = env("WHATSAPP_VERIFY_TOKEN", default="")
 
 # Telegram Bot (expense logging via Telegram)
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
@@ -441,3 +447,14 @@ CELERY_BEAT_SCHEDULE = {
 
 # Exchange Rate API
 EXCHANGE_RATE_API_KEY = env("EXCHANGE_RATE_API_KEY", default="")
+
+# Sentry error monitoring
+SENTRY_DSN = env("SENTRY_DSN", default="")
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment="production" if not DEBUG else "development",
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.1,
+        send_default_pii=False,
+    )
