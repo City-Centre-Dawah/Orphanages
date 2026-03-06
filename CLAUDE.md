@@ -13,7 +13,7 @@ Expense management system for City Centre Dawah's orphanages in Uganda, Gambia, 
 - **Task queue:** Celery 5.3+ with Redis broker
 - **Cache/idempotency:** Redis 7 (also used for Django session/cache via django-redis)
 - **Media storage:** DigitalOcean Spaces (S3-compatible) in prod, local filesystem in dev
-- **Messaging:** WhatsApp (Twilio SDK) + Telegram Bot API (direct HTTP)
+- **Messaging:** WhatsApp (Meta Cloud API, direct) + Telegram Bot API (direct HTTP)
 - **SMS:** Africa's Talking SDK (confirmation messages)
 - **REST API:** Django REST Framework with token auth
 - **Reports:** Chart.js interactive dashboard + WeasyPrint PDF generation
@@ -81,12 +81,12 @@ backend/                    # Django project root (run manage.py from here)
 │   ├── urls.py             # Router-based URL config
 │   └── tests.py            # API endpoint tests
 └── webhooks/               # Messaging channel ingestion
-    ├── views.py            # WhatsApp webhook (Twilio signature + Redis idempotency)
+    ├── views.py            # WhatsApp webhook (Meta HMAC-SHA256 + Redis idempotency)
     ├── views_telegram.py   # Telegram webhook (secret token + Redis idempotency)
     ├── tasks.py            # Shared: _parse_and_create_expense()
     │                       # Channel-specific: process_whatsapp_message, process_telegram_message
     ├── models.py           # WhatsAppIncomingMessage, TelegramIncomingMessage (raw audit)
-    ├── whatsapp_reply.py   # Send replies via Twilio
+    ├── whatsapp_reply.py   # Send replies via Meta Graph API
     ├── telegram_reply.py   # Send replies via Telegram Bot API
     ├── sms.py              # SMS confirmation via Africa's Talking
     ├── admin.py            # Message preview for both channels
@@ -100,7 +100,7 @@ backend/                    # Django project root (run manage.py from here)
 | GET | `/admin/` | Django Admin dashboard |
 | GET | `/health/` | Health check (DB connectivity) |
 | GET | `/google_sso/callback/` | Google OAuth2 callback (django-google-sso) |
-| POST | `/webhooks/whatsapp/` | Twilio WhatsApp webhook |
+| POST | `/webhooks/whatsapp/` | WhatsApp Cloud API webhook |
 | POST | `/webhooks/telegram/` | Telegram Bot webhook |
 | POST | `/api/v1/auth/token/` | Obtain auth token |
 | GET | `/api/v1/sites/` | List sites (authenticated) |
@@ -181,8 +181,10 @@ All config is loaded from `.env` at the repo root (not `backend/`). See `.env.ex
 | `DATABASE_URL` | No (default: local) | PostgreSQL connection string |
 | `REDIS_URL` | No (default: localhost) | Redis for cache, sessions, and idempotency |
 | `CELERY_BROKER_URL` | No (default: localhost) | Redis for Celery broker |
-| `TWILIO_ACCOUNT_SID` | For WhatsApp | Twilio account identifier |
-| `TWILIO_AUTH_TOKEN` | For WhatsApp | Twilio signature validation (skipped if empty in dev) |
+| `WHATSAPP_ACCESS_TOKEN` | For WhatsApp | Meta Cloud API access token (permanent via System User) |
+| `WHATSAPP_PHONE_NUMBER_ID` | For WhatsApp | Meta phone number ID for sending replies |
+| `WHATSAPP_APP_SECRET` | For WhatsApp | HMAC-SHA256 webhook signature validation |
+| `WHATSAPP_VERIFY_TOKEN` | For WhatsApp | Webhook verification challenge token |
 | `TELEGRAM_BOT_TOKEN` | For Telegram | Bot token from @BotFather |
 | `TELEGRAM_WEBHOOK_SECRET` | For Telegram | Secret token for webhook validation |
 | `GOOGLE_OAUTH_CLIENT_ID` | For Google SSO | Google Cloud OAuth2 client ID |
@@ -249,7 +251,7 @@ These are areas where the codebase is incomplete or needs attention:
 1. **No CI/CD** — No GitHub Actions. Deployment is manual via SSH (see `docs/DEPLOYMENT.md`).
 2. **SyncQueue incomplete** — Model exists for Phase 2 offline-first mobile sync. Only `table_name=="expense"` with `action=="insert"` is implemented; "update" actions, other tables, and "conflict" resolution are not yet wired up.
 3. **No ASGI** — Uses WSGI (Gunicorn). If WebSocket support is needed later, switch to ASGI.
-4. **Limited test coverage** — Tests exist in `core/tests.py`, `expenses/tests.py`, `webhooks/tests.py`, and `api/tests.py`, but there are no integration tests with real messaging providers (Twilio, Telegram).
+4. **Limited test coverage** — Tests exist in `core/tests.py`, `expenses/tests.py`, `webhooks/tests.py`, and `api/tests.py`, but there are no integration tests with real messaging providers (Meta WhatsApp, Telegram).
 5. **No CI linting** — `ruff` and `black` in requirements but not enforced via CI.
 6. **No Celery task-level idempotency** — Idempotency is enforced at Redis and DB-in-view layers, but not at the Celery task entry point. If a task is manually retried (e.g. via Flower), duplicate expenses could be created.
 7. **`funding_source` optional** — The FK exists on Expense and is seeded, but webhook-created expenses always set it to `None`. Available for admin-only manual entry; not part of the caretaker workflow.

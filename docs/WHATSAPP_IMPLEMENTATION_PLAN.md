@@ -1,9 +1,11 @@
 # WhatsApp Implementation Plan
 
-**Date:** 2026-03-04
-**Status:** Partially Implemented (see workstream statuses below)
+**Date:** 2026-03-04 (updated 2026-03-06)
+**Status:** Decision made — **Meta WhatsApp Cloud API (direct, no Twilio)**
 **Author:** Architecture Review
 **Scope:** Hardening existing webhook code + WhatsApp provider selection + production activation
+
+> **DECISION (2026-03-06):** We are going direct with Meta's WhatsApp Cloud API (Option B below). Twilio is not being used. The setup guide is at `docs/WHATSAPP_SETUP_GUIDE.md`. Code changes to `webhooks/views.py` and `webhooks/whatsapp_reply.py` are required to replace Twilio SDK calls with Meta Graph API calls. The Celery tasks, models, and expense logic are already provider-agnostic.
 
 ---
 

@@ -293,7 +293,7 @@ That `(venv)` confirms you are inside the virtual environment.
 
 ### Step 2.6 — Install Python packages
 
-This installs Django, Celery, Redis, Twilio, and all other dependencies:
+This installs Django, Celery, Redis, and all other dependencies:
 
 ```
 $ pip install -r requirements.txt
@@ -495,9 +495,11 @@ AWS_STORAGE_BUCKET_NAME=
 AWS_S3_REGION_NAME=lon1
 AWS_S3_ENDPOINT_URL=https://lon1.digitaloceanspaces.com
 
-TWILIO_ACCOUNT_SID=
-TWILIO_AUTH_TOKEN=
-TWILIO_WHATSAPP_WEBHOOK_TOKEN=
+# WhatsApp Cloud API (Meta direct — see docs/WHATSAPP_SETUP_GUIDE.md)
+WHATSAPP_ACCESS_TOKEN=
+WHATSAPP_PHONE_NUMBER_ID=
+WHATSAPP_APP_SECRET=
+WHATSAPP_VERIFY_TOKEN=
 
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_WEBHOOK_SECRET=
