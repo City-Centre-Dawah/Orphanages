@@ -59,17 +59,37 @@ def pre_create_user(google_user_info: dict, request: HttpRequest) -> dict:
 def pre_login_user(user, request: HttpRequest) -> None:
     """Called by django-google-sso after user is retrieved but before login.
 
-    Assigns Django permission group based on email domain on first login
-    (i.e. when the user has no groups yet). Manual group changes are preserved.
+    Ensures domain-based role, staff status, and group assignment are correct.
+    This runs on every SSO login so it self-heals if a user was created
+    before seed_data was run, or if their flags were accidentally cleared.
     """
-    if user.groups.exists():
-        return  # Groups already assigned, don't override manual changes
-
     email = user.email or ""
     domain = email.split("@")[-1].lower() if "@" in email else ""
-    _, _, _, group_name = DOMAIN_ROLE_MAP.get(domain, ("viewer", False, False, None))
+    role, is_staff, is_superuser, group_name = DOMAIN_ROLE_MAP.get(
+        domain, ("viewer", False, False, None)
+    )
 
-    if group_name:
+    # Ensure staff status and role match the domain policy
+    changed_fields = []
+    if not user.is_staff and is_staff:
+        user.is_staff = True
+        changed_fields.append("is_staff")
+    if not user.is_superuser and is_superuser:
+        user.is_superuser = True
+        changed_fields.append("is_superuser")
+    if user.role != role:
+        user.role = role
+        changed_fields.append("role")
+
+    if changed_fields:
+        user.save(update_fields=changed_fields)
+        logger.info(
+            "Updated SSO user %s: %s",
+            email, ", ".join(f"{f}={getattr(user, f)}" for f in changed_fields),
+        )
+
+    # Assign permission group if not already a member
+    if group_name and not user.groups.filter(name=group_name).exists():
         try:
             group = Group.objects.get(name=group_name)
             user.groups.add(group)

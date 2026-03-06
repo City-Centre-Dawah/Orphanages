@@ -1,10 +1,12 @@
-# WhatsApp API Setup Guide (Step by Step)
+# WhatsApp Cloud API Setup Guide (Step by Step)
 
 **Who this is for:** Anyone setting up WhatsApp messaging for the CCD Orphanage system, even if you've never done anything like this before. Every single step is spelled out.
 
 **What this does:** When you're finished, caretakers at orphanages in Uganda, Gambia, and Indonesia will be able to send a WhatsApp message like `Food 50000 rice Kalerwe` and the system will automatically log that expense, convert the currency to GBP, and notify the admin team.
 
-**Time needed:** About 2-3 hours end to end (most of that is waiting for Twilio/Meta approvals).
+**We are using Meta's WhatsApp Cloud API directly** — no Twilio, no middleman. This means **zero cost** for our use case (caretakers message us, we reply within 24 hours).
+
+**Time needed:** About 2-3 hours of setup work, plus 1-7 business days waiting for Meta to verify the business.
 
 ---
 
@@ -12,52 +14,56 @@
 
 1. [The Big Picture — How It All Fits Together](#1-the-big-picture)
 2. [What You Need Before You Start](#2-what-you-need-before-you-start)
-3. [Step 1: Create a Twilio Account](#step-1-create-a-twilio-account)
-4. [Step 2: Find Your Twilio Credentials](#step-2-find-your-twilio-credentials)
-5. [Step 3: Activate the WhatsApp Sandbox](#step-3-activate-the-whatsapp-sandbox)
-6. [Step 4: Connect Your Phone to the Sandbox](#step-4-connect-your-phone-to-the-sandbox)
-7. [Step 5: Set Your Webhook URL in Twilio](#step-5-set-your-webhook-url-in-twilio)
-8. [Step 6: Put Your Twilio Credentials in the Server](#step-6-put-your-twilio-credentials-in-the-server)
-9. [Step 7: Make Sure Redis Is Running](#step-7-make-sure-redis-is-running)
-10. [Step 8: Make Sure Celery Is Running](#step-8-make-sure-celery-is-running)
-11. [Step 9: Register a Test Caretaker in Django Admin](#step-9-register-a-test-caretaker-in-django-admin)
-12. [Step 10: Make Sure Budget Categories Exist](#step-10-make-sure-budget-categories-exist)
-13. [Step 11: Make Sure Exchange Rates Exist](#step-11-make-sure-exchange-rates-exist)
-14. [Step 12: Send Your First Test Message](#step-12-send-your-first-test-message)
-15. [Step 13: Check That It Worked](#step-13-check-that-it-worked)
-16. [Step 14: Test Error Cases](#step-14-test-error-cases)
-17. [Step 15: Upgrade to a Real WhatsApp Number (Production)](#step-15-upgrade-to-a-real-whatsapp-number)
-18. [Step 16: Register Real Caretaker Phone Numbers](#step-16-register-real-caretaker-phone-numbers)
-19. [Troubleshooting — When Things Go Wrong](#troubleshooting)
-20. [How Messages Work (Behind the Scenes)](#how-messages-work)
-21. [Costs](#costs)
-22. [Glossary — Words You Might Not Know](#glossary)
+3. [Step 1: Create a Meta (Facebook) Developer Account](#step-1-create-a-meta-developer-account)
+4. [Step 2: Create a Meta Business Account](#step-2-create-a-meta-business-account)
+5. [Step 3: Create a Meta App](#step-3-create-a-meta-app)
+6. [Step 4: Add WhatsApp to Your App](#step-4-add-whatsapp-to-your-app)
+7. [Step 5: Get Your Temporary Access Token](#step-5-get-your-temporary-access-token)
+8. [Step 6: Find Your Phone Number ID and Business Account ID](#step-6-find-your-phone-number-id-and-business-account-id)
+9. [Step 7: Send a Test Message FROM Meta TO Your Phone](#step-7-send-a-test-message-from-meta-to-your-phone)
+10. [Step 8: Set Up ngrok (Local Testing Only)](#step-8-set-up-ngrok)
+11. [Step 9: Configure the Webhook in Meta Developer Dashboard](#step-9-configure-the-webhook)
+12. [Step 10: Subscribe to Message Events](#step-10-subscribe-to-message-events)
+13. [Step 11: Put Your Meta Credentials in the Server](#step-11-put-your-meta-credentials-in-the-server)
+14. [Step 12: Make Sure Redis Is Running](#step-12-make-sure-redis-is-running)
+15. [Step 13: Make Sure Celery Is Running](#step-13-make-sure-celery-is-running)
+16. [Step 14: Register a Test Caretaker in Django Admin](#step-14-register-a-test-caretaker)
+17. [Step 15: Make Sure Budget Categories Exist](#step-15-budget-categories)
+18. [Step 16: Make Sure Exchange Rates Exist](#step-16-exchange-rates)
+19. [Step 17: Send Your First Test Message FROM Your Phone](#step-17-send-your-first-test-message)
+20. [Step 18: Check That It Worked](#step-18-check-that-it-worked)
+21. [Step 19: Test Error Cases](#step-19-test-error-cases)
+22. [Step 20: Generate a Permanent Access Token](#step-20-permanent-access-token)
+23. [Step 21: Verify Your Business (Production)](#step-21-verify-your-business)
+24. [Step 22: Add a Real Phone Number (Production)](#step-22-add-a-real-phone-number)
+25. [Step 23: Register Real Caretaker Phone Numbers](#step-23-register-real-caretakers)
+26. [Troubleshooting — When Things Go Wrong](#troubleshooting)
+27. [How Messages Work (Behind the Scenes)](#how-messages-work)
+28. [Costs](#costs)
+29. [Glossary — Words You Might Not Know](#glossary)
 
 ---
 
 ## 1. The Big Picture
 
-Here's what happens when a caretaker sends a WhatsApp message:
+Here's what happens when a caretaker sends a WhatsApp message. Notice there's **no middleman** — Meta sends directly to our server:
 
 ```
 Caretaker's Phone (WhatsApp)
         |
         | sends message: "Food 50000 rice Kalerwe"
         ▼
-    Meta (WhatsApp servers)
+    Meta (WhatsApp Cloud servers)
         |
-        | forwards the message to...
-        ▼
-    Twilio (our middleman service)
-        |
-        | sends an HTTP POST request to...
+        | sends a JSON webhook POST directly to...
+        |  (no Twilio, no middleman)
         ▼
     Our Django Server (/webhooks/whatsapp/)
         |
-        | 1. Checks the message is really from Twilio (security)
-        | 2. Saves the raw message to the database (audit trail)
-        | 3. Hands it to Celery (background worker) for processing
-        | 4. Immediately replies "200 OK" so Twilio doesn't retry
+        | 1. Checks the message is really from Meta (HMAC-SHA256 signature)
+        | 2. Responds "200 OK" immediately (so Meta doesn't retry)
+        | 3. Saves the raw message to the database (audit trail)
+        | 4. Hands it to Celery (background worker) for processing
         ▼
     Celery Worker (background)
         |
@@ -68,7 +74,11 @@ Caretaker's Phone (WhatsApp)
         | 5. Downloads the receipt photo (if one was attached)
         | 6. Creates an Expense record in the database
         ▼
-    Reply sent back via WhatsApp:
+    Reply sent back via Meta's Graph API:
+        POST https://graph.facebook.com/v21.0/{phone_number_id}/messages
+        |
+        ▼
+    Caretaker sees reply on WhatsApp:
     "✓ Expense Logged #12345
      Category: Food
      Amount: 50,000 UGX (£10.00 GBP)
@@ -76,10 +86,10 @@ Caretaker's Phone (WhatsApp)
 ```
 
 **You need four things running for this to work:**
-1. Django (the web server) — receives the webhook
-2. PostgreSQL (the database) — stores expenses
-3. Redis (fast cache) — prevents duplicate messages
-4. Celery (background worker) — does the actual processing
+1. **Django** (the web server) — receives the webhook from Meta
+2. **PostgreSQL** (the database) — stores expenses
+3. **Redis** (fast cache) — prevents duplicate messages
+4. **Celery** (background worker) — does the actual processing
 
 ---
 
@@ -89,591 +99,643 @@ Before you touch anything, make sure you have:
 
 - [ ] **A computer or server** where the Django app is already running (either locally or on your DigitalOcean droplet)
 - [ ] **The Django app working** — you can visit `http://localhost:8000/admin/` (local) or `https://your-domain.com/admin/` (production) and log in
-- [ ] **A credit/debit card** — Twilio needs one to create an account (the sandbox is free, but they still ask for a card)
+- [ ] **A personal Facebook account** — you need one to create a Meta Developer account (your personal info won't be visible to caretakers)
 - [ ] **A phone with WhatsApp** — to test sending messages
-- [ ] **An email address** — for your Twilio account
 - [ ] **Access to the `.env` file** on the server where Django runs
 - [ ] **SSH access to the server** (if production) or terminal access (if local)
+
+**You do NOT need:**
+- A credit card (the Cloud API is free for our use case)
+- A Twilio account
+- A Facebook Page
 
 If the Django app isn't set up yet, follow `docs/SETUP_GUIDE.md` first, then come back here.
 
 ---
 
-## Step 1: Create a Twilio Account
+## Step 1: Create a Meta Developer Account
+
+A "Meta Developer Account" lets you build apps that use Meta's services (WhatsApp, Facebook, Instagram). Think of it like a developer account on any platform.
 
 1. Open your web browser
-2. Go to **https://www.twilio.com/try-twilio**
+2. Go to **https://developers.facebook.com/**
+3. Click **"Get Started"** (top right corner)
+4. If you're not logged into Facebook, it will ask you to log in — use your personal Facebook account
+   - This is just for verification. Caretakers will never see your personal info
+   - If you don't have a Facebook account, you need to create one first at facebook.com
+5. You'll see a "Register as a Meta Developer" page
+6. Accept the Terms and click **"Continue"**
+7. You might be asked to verify your account with a phone number or email — do that
+8. Choose **"Developer"** as your role (not "Tester")
+9. You should now see the **Meta for Developers** dashboard
+
+**What you've done:** Created a Meta Developer account that lets you create apps and use the WhatsApp Cloud API.
+
+---
+
+## Step 2: Create a Meta Business Account
+
+A "Meta Business Account" (also called "Meta Business Manager") is required to use the WhatsApp Business API. It represents your organisation (City Centre Dawah).
+
+1. Go to **https://business.facebook.com/**
+2. Click **"Create Account"** (or "Create a Business Portfolio")
 3. Fill in:
-   - **First name:** Your first name
-   - **Last name:** Your last name
-   - **Email:** Your email (use your `@ccdawah.org` email if you have one)
-   - **Password:** Make a strong one and save it somewhere safe
-4. Click **"Start your free trial"**
-5. Twilio will send a verification email to the address you typed
-6. Open your email, find the email from Twilio, click the verification link
-7. Twilio will ask you to verify your phone number:
-   - Enter your phone number (with country code, like `+44` for UK)
-   - They'll send you a code by SMS
-   - Type that code into the Twilio website
-8. Twilio will ask what you want to build — choose:
-   - **"WhatsApp"** if that option appears
-   - Otherwise pick **"Other"** — it doesn't really matter, it just customises the dashboard
-9. You're now on the Twilio Console dashboard
+   - **Business name:** `City Centre Dawah`
+   - **Your name:** Your full name
+   - **Business email:** Use your `@ccdawah.org` email
+4. Click **"Submit"**
+5. Check your email and verify the address
+6. You should now see the **Meta Business Suite** dashboard
+7. **Write down your Business Account ID** — you'll find it in the URL bar or in Business Settings. It's a long number like `123456789012345`
 
-**What you've done:** Created a free Twilio trial account. Trial accounts can send/receive WhatsApp messages using the sandbox (which is perfect for testing).
+> **Note:** If CCD already has a Meta Business account (e.g. for Facebook or Instagram), use that one. Don't create a duplicate. Ask whoever manages the CCD social media.
+
+**What you've done:** Created (or found) the Meta Business Account that will own the WhatsApp phone number.
 
 ---
 
-## Step 2: Find Your Twilio Credentials
+## Step 3: Create a Meta App
 
-You need two secret values from Twilio. Think of these like a username and password that let our server talk to Twilio.
+A "Meta App" is a container that holds your WhatsApp configuration, API keys, and webhook settings.
 
-1. You should be on the Twilio Console dashboard (if not, go to **https://console.twilio.com/**)
-2. Look for a section called **"Account Info"** (usually on the main dashboard page)
+1. Go to **https://developers.facebook.com/apps/**
+2. Click **"Create App"**
+3. You'll be asked **"What do you want your app to do?"** — select **"Other"**
+4. Click **"Next"**
+5. Select app type: **"Business"**
+6. Click **"Next"**
+7. Fill in:
+   - **App name:** `CCD Orphanage WhatsApp` (or any name — caretakers won't see this)
+   - **App contact email:** Your `@ccdawah.org` email
+   - **Business portfolio:** Select "City Centre Dawah" from Step 2
+8. Click **"Create App"**
+9. You might need to enter your Facebook password to confirm
+10. You're now on the **App Dashboard**
+
+### Find Your App Secret (IMPORTANT — save this now)
+
+1. On the App Dashboard, look at the left sidebar
+2. Click **"App Settings"** → **"Basic"**
 3. You'll see:
-   - **Account SID** — starts with `AC` followed by 32 letters and numbers
-   - **Auth Token** — a long string of letters and numbers (click the eye icon or "Show" to reveal it)
-4. **Copy both of these and save them somewhere safe** (a password manager, a secure note, etc.)
+   - **App ID** — a number like `123456789012345`
+   - **App Secret** — click **"Show"** to reveal it (you'll need your Facebook password)
+4. **Copy both the App ID and App Secret and save them somewhere safe** (password manager, secure note, etc.)
 
-> **WARNING:** The Auth Token is like a password. Never share it publicly, never put it in code that gets committed to GitHub, never send it in a message. Anyone who has it can send messages and run up your bill.
+> **WARNING:** The App Secret is like a password. Never share it publicly, never put it in code that gets committed to GitHub. Anyone who has it can fake webhook events to your server.
 
-**What you've done:** Found the two keys your server needs to communicate with Twilio securely.
-
----
-
-## Step 3: Activate the WhatsApp Sandbox
-
-The "sandbox" is Twilio's free testing environment for WhatsApp. It lets you send and receive messages without going through Meta's full business verification (which takes days/weeks).
-
-1. In the Twilio Console, look at the left sidebar
-2. Click **"Messaging"** (or **"Develop" → "Messaging"**)
-3. Click **"Try it out"**
-4. Click **"Send a WhatsApp message"**
-5. Twilio will show you the WhatsApp Sandbox page
-6. You'll see a green box with instructions like:
-
-   > Send **join <two-random-words>** to **+1 415 523 8886** on WhatsApp
-
-   For example: "Send **join hungry-elephant** to **+1 415 523 8886**"
-
-7. **Write down the two-word code** (e.g. "hungry-elephant") — you'll need this in the next step
-8. Also **write down the sandbox phone number** shown (usually `+1 415 523 8886`)
-
-**What you've done:** Activated the WhatsApp sandbox on your Twilio account.
+**What you've done:** Created the Meta App and saved your App ID and App Secret.
 
 ---
 
-## Step 4: Connect Your Phone to the Sandbox
+## Step 4: Add WhatsApp to Your App
 
-Now you need to tell WhatsApp that your phone wants to talk to the Twilio sandbox.
+Now you tell Meta that this app will use WhatsApp.
 
-1. Open **WhatsApp** on your phone
-2. Start a new chat
-3. Add the phone number from Step 3 as a contact (e.g. `+1 415 523 8886`)
-4. Send a message to that number: **join hungry-elephant** (use YOUR two-word code from Step 3, not this example)
-5. You should get a reply back saying something like:
+1. On the App Dashboard, you should see **"Add products to your app"**
+   - If you don't see this, click **"Add Product"** in the left sidebar
+2. Find **"WhatsApp"** in the list
+3. Click **"Set Up"** next to WhatsApp
+4. It will ask you to select a Meta Business Account — pick **"City Centre Dawah"**
+5. Click **"Continue"**
+6. You should now see **"WhatsApp"** in the left sidebar with sub-sections like:
+   - Getting Started
+   - API Setup
+   - Configuration
 
-   > "You're connected to the sandbox! You can start sending messages."
+7. Click **"API Setup"** in the left sidebar (under WhatsApp)
+8. You'll see:
+   - A **test phone number** provided by Meta (temporary number for testing)
+   - A **Phone number ID**
+   - A **WhatsApp Business Account ID**
 
-6. **Do this for every phone you want to test with.** Each person's phone needs to send the "join" message once.
-
-> **Important:** The sandbox connection expires after 72 hours of inactivity. If you stop getting responses, just send the "join" message again.
-
-**What you've done:** Connected your phone to the Twilio sandbox so messages you send get forwarded to your server.
+**What you've done:** Added WhatsApp to your Meta App. Meta has given you a test phone number to play with.
 
 ---
 
-## Step 5: Set Your Webhook URL in Twilio
+## Step 5: Get Your Temporary Access Token
 
-A "webhook" is a URL that Twilio will call every time someone sends a WhatsApp message. Twilio needs to know where your server is.
+The "Access Token" is what your server uses to send replies back to caretakers. Meta gives you a temporary one for testing (it expires after 24 hours).
 
-### If You're Testing Locally (your computer)
+1. You should be on the **"API Setup"** page (WhatsApp → API Setup in left sidebar)
+2. Look for the section **"Temporary access token"**
+3. You'll see a long string — this is your token
+4. Click the **copy button** next to it
+5. **Save this somewhere** — you'll need it in Step 11
 
-Your local server (`localhost:8000`) is not reachable from the internet, so Twilio can't send messages to it. You need a tool called **ngrok** to create a temporary public URL.
+> **Important:** This temporary token expires after **24 hours**. Fine for testing. In Step 20, we'll create a permanent one.
+
+**What you've done:** Got a temporary API token for sending WhatsApp messages.
+
+---
+
+## Step 6: Find Your Phone Number ID and Business Account ID
+
+You need two IDs from the WhatsApp API Setup page.
+
+1. Still on the **"API Setup"** page
+2. Look at the **"From"** dropdown — it shows the test phone number
+3. Below it, you'll see:
+   - **Phone number ID:** A long number
+   - **WhatsApp Business Account ID:** Another long number
+4. **Copy both and save them**
+
+You should now have 5 things saved:
+
+| What | Where You Found It |
+|------|-------------------|
+| App ID | App Settings → Basic |
+| App Secret | App Settings → Basic (click "Show") |
+| Temporary Access Token | WhatsApp → API Setup |
+| Phone Number ID | WhatsApp → API Setup |
+| WhatsApp Business Account ID | WhatsApp → API Setup |
+
+**What you've done:** Collected all the credentials your server needs.
+
+---
+
+## Step 7: Send a Test Message FROM Meta TO Your Phone
+
+Before setting up webhooks (receiving messages), let's test the basics — can Meta send a message TO your phone?
+
+1. Still on the **"API Setup"** page
+2. In the **"Send messages"** section, find the **"To"** field
+3. Click **"Manage phone number list"**
+4. Add your phone number:
+   - Enter your WhatsApp number with country code (e.g. `+447700900000` for UK)
+   - Meta will send you a verification code on WhatsApp
+   - Enter that code to confirm
+5. Now select your number in the **"To"** dropdown
+6. Click **"Send message"**
+7. Check your WhatsApp — you should get a template message (like "Hello World")
+
+**If you got the message:** Outbound works. Meta can reach your phone.
+
+**If you didn't:** Make sure you entered the right number, WhatsApp is installed, and try again in a minute.
+
+**What you've done:** Confirmed Meta can send WhatsApp messages to your phone.
+
+---
+
+## Step 8: Set Up ngrok (Local Testing Only)
+
+> **Skip this step if you're on the production server** (DigitalOcean with a domain). Go to Step 9.
+
+Your local computer (`localhost:8000`) isn't reachable from the internet. **ngrok** creates a temporary public URL.
 
 1. Go to **https://ngrok.com/** and create a free account
-2. Download and install ngrok for your operating system
-3. Open a terminal and run:
+2. Download and install ngrok
+3. Copy your auth token from the ngrok dashboard
+4. Set up the auth token:
+   ```bash
+   ngrok config add-authtoken YOUR_AUTH_TOKEN_HERE
+   ```
+5. Start the tunnel:
    ```bash
    ngrok http 8000
    ```
-4. ngrok will show you something like:
+6. You'll see something like:
    ```
    Forwarding  https://a1b2c3d4.ngrok-free.app -> http://localhost:8000
    ```
-5. **Copy that `https://....ngrok-free.app` URL.** This is your temporary public URL.
-6. Your webhook URL is: `https://a1b2c3d4.ngrok-free.app/webhooks/whatsapp/`
+7. **Copy that `https://....ngrok-free.app` URL**
+8. Your webhook URL will be: `https://a1b2c3d4.ngrok-free.app/webhooks/whatsapp/`
 
-> **Note:** Every time you restart ngrok, the URL changes. You'll need to update Twilio each time.
+> **Keep ngrok running!** If you close it, the URL dies.
 
-### If You're on Production (DigitalOcean server)
+> **Note:** The URL changes every time you restart ngrok — you'll need to update Meta's webhook config each time.
 
-Your webhook URL is simply: `https://your-domain.com/webhooks/whatsapp/`
-
-For example: `https://orphanages.ccdawah.org/webhooks/whatsapp/`
-
-### Now Tell Twilio About This URL
-
-1. Go back to the Twilio Console in your browser
-2. Navigate to: **Messaging → Try it out → Send a WhatsApp message**
-3. Scroll down — you'll see a section called **"Sandbox Configuration"** (or click "Sandbox settings" on the left)
-4. Find the field **"WHEN A MESSAGE COMES IN"**
-5. Paste your webhook URL:
-   - Local: `https://a1b2c3d4.ngrok-free.app/webhooks/whatsapp/`
-   - Production: `https://your-domain.com/webhooks/whatsapp/`
-6. Make sure the dropdown next to it says **"HTTP POST"** (not GET)
-7. Leave **"STATUS CALLBACK URL"** blank for now
-8. Click **"Save"**
-
-**What you've done:** Told Twilio "whenever someone sends a WhatsApp message, forward it to our Django server at this address."
+**What you've done:** Created a public URL so Meta can reach your local machine.
 
 ---
 
-## Step 6: Put Your Twilio Credentials in the Server
+## Step 9: Configure the Webhook in Meta Developer Dashboard
 
-Your Django app needs the Account SID and Auth Token from Step 2 to:
-- Verify that incoming webhooks are really from Twilio (security)
-- Send reply messages back to the caretaker
+This tells Meta: "When someone sends a WhatsApp message, forward it to my server."
+
+### 9a: Choose a Verify Token
+
+Make up a random secret string — like `ccd-orphanage-webhook-2026-xyz`. This is used only during webhook setup to prove you own the URL.
+
+**Write it down** — you need it in both Meta's dashboard and your `.env` file.
+
+### 9b: Set the Webhook URL in Meta
+
+1. In Meta Developer Dashboard, go to your app
+2. Left sidebar → **"WhatsApp"** → **"Configuration"**
+3. Find the **"Webhook"** section
+4. Click **"Edit"**
+5. Fill in:
+   - **Callback URL:**
+     - Local: `https://a1b2c3d4.ngrok-free.app/webhooks/whatsapp/` (your ngrok URL)
+     - Production: `https://your-domain.com/webhooks/whatsapp/`
+   - **Verify token:** The string you made up in 9a
+6. Click **"Verify and Save"**
+
+### What Happens When You Click "Verify and Save"
+
+Meta immediately sends a GET request to your callback URL:
+
+```
+GET /webhooks/whatsapp/?hub.mode=subscribe&hub.verify_token=YOUR_TOKEN&hub.challenge=1234567890
+```
+
+Your server must:
+1. Check that `hub.verify_token` matches what you set
+2. Respond with the `hub.challenge` value (echo it back)
+
+**If it works:** Green checkmark, webhook saved.
+
+**If it fails:**
+- Is your server running?
+- Is the URL correct and reachable? (try opening it in your browser)
+- Is ngrok running? (local only)
+- Check Django logs for the incoming GET request
+
+**What you've done:** Told Meta where to send messages, and Meta verified it can reach you.
+
+---
+
+## Step 10: Subscribe to Message Events
+
+Even after verification, Meta won't send you anything until you subscribe to specific events.
+
+1. Still on the **"Configuration"** page (WhatsApp → Configuration)
+2. Under the Webhook section, you'll see **"Webhook fields"**
+3. Find **"messages"** in the list
+4. Click **"Subscribe"** next to it (toggle should turn on)
+
+Optional but useful:
+- **message_deliveries** — tells you when your reply was delivered
+- **message_reads** — tells you when the user read it
+
+**"messages"** is the only required one.
+
+**What you've done:** Told Meta to send you webhook notifications when messages arrive.
+
+---
+
+## Step 11: Put Your Meta Credentials in the Server
 
 ### Find and Edit the `.env` File
 
 The `.env` file lives at the **root of the project** (one level above `backend/`).
 
-**If you're on your local machine:**
 ```bash
-# Open the file in a text editor
+# Local
 nano /home/user/Orphanages/.env
-```
 
-**If you're on the production server:**
-```bash
+# Production (SSH in first)
 ssh your-username@your-server-ip
 nano /path/to/Orphanages/.env
 ```
 
 ### Add These Lines
 
-Find the Twilio section (or add it at the bottom) and set:
+Find the WhatsApp section (or add at the bottom):
 
 ```env
-TWILIO_ACCOUNT_SID=your-account-sid-from-twilio-console
-TWILIO_AUTH_TOKEN=your-auth-token-from-twilio-console
+# WhatsApp Cloud API (Meta Direct — no Twilio)
+WHATSAPP_ACCESS_TOKEN=your-access-token-from-step-5
+WHATSAPP_PHONE_NUMBER_ID=your-phone-number-id-from-step-6
+WHATSAPP_BUSINESS_ACCOUNT_ID=your-business-account-id-from-step-6
+WHATSAPP_APP_SECRET=your-app-secret-from-step-3
+WHATSAPP_VERIFY_TOKEN=your-verify-token-from-step-9a
 ```
 
-Replace the placeholder values with the actual values you copied in Step 2. Your Account SID starts with `AC` followed by 32 hex characters, and the Auth Token is 32 hex characters.
+Here's what each one is:
 
-### Save and Close
+| Variable | Where You Got It | Looks Like |
+|----------|-----------------|------------|
+| `WHATSAPP_ACCESS_TOKEN` | Step 5 (API Setup → Temporary access token) | Very long string starting with `EAA...` |
+| `WHATSAPP_PHONE_NUMBER_ID` | Step 6 (API Setup) | Number like `123456789012345` |
+| `WHATSAPP_BUSINESS_ACCOUNT_ID` | Step 6 (API Setup) | Number like `987654321098765` |
+| `WHATSAPP_APP_SECRET` | Step 3 (App Settings → Basic) | 32-character hex string |
+| `WHATSAPP_VERIFY_TOKEN` | Step 9a (you made this up) | Your chosen string |
 
-- In `nano`: Press `Ctrl + O` (save), then `Enter`, then `Ctrl + X` (exit)
-- In `vim`: Press `Esc`, type `:wq`, press `Enter`
+### Comment Out or Remove Twilio Variables
 
-### Restart Django to Pick Up the New Settings
+Since we're not using Twilio:
 
-**Local:**
-```bash
-# Stop the server (Ctrl + C) and start it again
-cd /home/user/Orphanages/backend
-python manage.py runserver
+```env
+# Twilio (not used — using Meta Cloud API directly)
+# TWILIO_ACCOUNT_SID=
+# TWILIO_AUTH_TOKEN=
 ```
 
-**Production:**
-```bash
-sudo systemctl restart gunicorn
-```
+### Save and Restart
 
-**What you've done:** Given your Django server the credentials it needs to talk to Twilio.
+- Save: `Ctrl + O`, `Enter`, `Ctrl + X` (in nano)
+- Restart:
+  - Local: Stop server (`Ctrl + C`), run `python manage.py runserver`
+  - Production: `sudo systemctl restart gunicorn`
+
+**What you've done:** Given your server the credentials to receive and reply to WhatsApp messages.
 
 ---
 
-## Step 7: Make Sure Redis Is Running
+## Step 12: Make Sure Redis Is Running
 
-Redis is needed for two things:
-1. **Preventing duplicate messages** — if Twilio sends the same message twice (which happens sometimes), Redis remembers the first one and ignores the second
-2. **Celery's task queue** — Redis acts as the "to-do list" that Celery reads from
-
-### Check If Redis Is Running
+Redis prevents duplicate messages and powers Celery's task queue.
 
 ```bash
 redis-cli ping
 ```
 
-**If you see:** `PONG` — Redis is running. Move to the next step.
+**See `PONG`?** Good, move on.
 
-**If you see an error like "Connection refused":**
+**See "Connection refused"?**
 
-**Local (using Docker):**
 ```bash
-cd /home/user/Orphanages
-docker compose up -d
-```
-Then try `redis-cli ping` again.
+# Local (Docker)
+cd /home/user/Orphanages && docker compose up -d
 
-**Production:**
-```bash
+# Production
 sudo systemctl start redis-server
-sudo systemctl enable redis-server  # makes it start on boot
+sudo systemctl enable redis-server
 ```
 
-### Verify Redis Is Connected to Django
+### Verify Django can talk to Redis
 
 ```bash
 cd /home/user/Orphanages/backend
 python manage.py shell -c "from django.core.cache import cache; cache.set('test', 'ok'); print(cache.get('test'))"
 ```
 
-You should see: `ok`
-
-**What you've done:** Made sure Redis is running so message deduplication and Celery work.
+Should print: `ok`
 
 ---
 
-## Step 8: Make Sure Celery Is Running
+## Step 13: Make Sure Celery Is Running
 
-Celery is the background worker that actually processes messages. Without it, messages arrive at your server but nothing happens with them (they just sit in the queue forever).
+Celery is the background worker that processes messages. Without it, messages arrive but nothing happens.
 
-### Start Celery
-
-**Local (open a new terminal window/tab):**
+**Local (new terminal):**
 ```bash
 cd /home/user/Orphanages/backend
 source ../venv/bin/activate
 celery -A config worker -l info
 ```
 
-You should see output like:
-```
- -------------- celery@your-computer v5.3.x
---- ***** -----
--- ******* ----
-- *** --- * ---
-- ** ---------- [config]
-- ** ---------- .> app:         config:0x...
-...
-[tasks]
-  . webhooks.tasks.process_whatsapp_message
-  . webhooks.tasks.process_telegram_message
-
-[... connected to redis://localhost:6379/1]
-[... celery@your-computer ready.]
-```
-
-The important things to check:
-- `webhooks.tasks.process_whatsapp_message` appears in the `[tasks]` list
-- It says `connected to redis://` (not an error)
-- It says `ready` at the end
+Check for:
+- `webhooks.tasks.process_whatsapp_message` in the `[tasks]` list
+- `connected to redis://` (not an error)
+- `ready` at the end
 
 **Production:**
 ```bash
 sudo systemctl start celery
-sudo systemctl enable celery  # makes it start on boot
+sudo systemctl enable celery
+sudo systemctl status celery  # should say "active (running)"
 ```
 
-Check it's running:
-```bash
-sudo systemctl status celery
-```
-
-You should see `Active: active (running)`.
-
-> **Leave this terminal open!** Celery needs to keep running. If you close it, messages won't be processed.
-
-**What you've done:** Started the background worker that processes WhatsApp messages and creates expenses.
+> **Leave Celery running.** If it stops, messages won't be processed.
 
 ---
 
-## Step 9: Register a Test Caretaker in Django Admin
+## Step 14: Register a Test Caretaker in Django Admin
 
-The system needs to know which phone number belongs to which caretaker, so it can figure out which orphanage (site) the expense is for and what currency to use.
+The system needs to know which phone number belongs to which caretaker.
 
-1. Open your browser and go to Django Admin:
-   - Local: `http://localhost:8000/admin/`
-   - Production: `https://your-domain.com/admin/`
+1. Go to Django Admin: `http://localhost:8000/admin/` (or production URL)
 2. Log in with your superuser account
-3. In the left sidebar, click **"Users"** (under the "CORE" section)
-4. Click **"Add User"** (top right)
+3. Click **"Users"** → **"Add User"**
+4. Set username and password, click **"Save and continue editing"**
 5. Fill in:
-   - **Username:** something like `caretaker_test` (no spaces)
-   - **Password:** any password (the caretaker won't use this — they only use WhatsApp)
-   - **Password confirmation:** same password again
-6. Click **"Save and continue editing"**
-7. Now you'll see the full user form. Fill in:
-   - **First name:** The caretaker's first name (e.g. `Sarah`)
-   - **Last name:** The caretaker's last name (e.g. `Namutebi`)
-   - **Role:** Select `caretaker`
-   - **Organisation:** Select the organisation (e.g. `City Centre Dawah`)
-   - **Site:** Select the orphanage site (e.g. `Kampala Orphanage`)
-   - **Phone:** The caretaker's WhatsApp phone number **with country code and the `whatsapp:` prefix**
+   - **First name / Last name:** e.g. `Sarah Namutebi`
+   - **Role:** `caretaker`
+   - **Organisation:** `City Centre Dawah`
+   - **Site:** e.g. `Kampala Orphanage`
+   - **Phone:** The caretaker's number (see format below)
+6. Click **"Save"**
 
-### Phone Number Format — THIS IS VERY IMPORTANT
+### Phone Number Format — THIS IS CRITICAL
 
-The phone number must match EXACTLY what Twilio sends. Twilio sends numbers like:
+Meta's Cloud API sends phone numbers as **plain digits with country code**. No `+` sign, no `whatsapp:` prefix, no spaces, no dashes.
 
-```
-whatsapp:+256712345678
-```
+Examples:
 
-So in the **Phone** field, enter it as:
+| Country | Local number | What to enter in Phone field |
+|---------|-------------|------------------------------|
+| Uganda | 0712 345 678 | `256712345678` |
+| Gambia | 7654321 | `2207654321` |
+| Indonesia | 0812 3456 7890 | `6281234567890` |
+| UK (testing) | 07700 900000 | `447700900000` |
 
-```
-whatsapp:+256712345678
-```
-
-Where:
-- `whatsapp:` — this prefix is required
-- `+256` — the country code (Uganda=256, Gambia=220, Indonesia=62, UK=44)
-- The rest is the phone number without the leading 0
-
-**Examples:**
-| Country | Local number | What to enter |
-|---------|-------------|---------------|
-| Uganda | 0712 345 678 | `whatsapp:+256712345678` |
-| Gambia | 7654321 | `whatsapp:+2207654321` |
-| Indonesia | 0812 3456 7890 | `whatsapp:+6281234567890` |
-| UK (testing) | 07700 900000 | `whatsapp:+447700900000` |
-
-8. Click **"Save"**
-
-**What you've done:** Created a user record so the system knows: "When a message comes from this phone number, it's from this caretaker, at this orphanage, using this currency."
+The number in the Phone field must **exactly match** what Meta sends in the webhook, or the system won't find the user.
 
 ---
 
-## Step 10: Make Sure Budget Categories Exist
+## Step 15: Make Sure Budget Categories Exist
 
-Budget categories are the labels caretakers use at the start of their message (like "Food", "Medical", "Education"). The system needs these in the database.
+Categories are the labels like "Food", "Medical", "Education" that caretakers use.
 
-1. In Django Admin, click **"Budget categories"** in the left sidebar (under "CORE")
-2. You should see a list of categories like:
-   - Food
-   - Medical
-   - Education
-   - Salaries
-   - Utilities
-   - Transport
-   - Maintenance
-   - Clothing
-   - Miscellaneous
+1. In Django Admin, click **"Budget categories"** (under "CORE")
+2. You should see: Food, Medical, Education, Salaries, Utilities, Transport, Maintenance, Clothing, Miscellaneous
 
-**If the list is empty**, run the seed command:
-
+**If empty**, run:
 ```bash
 cd /home/user/Orphanages/backend
 python manage.py seed_data
 ```
 
-This creates all the default categories, funding sources, and other reference data.
-
-3. **Write down the exact category names** — caretakers need to use these exact words (though the system will try to fuzzy-match close spellings)
-
-**What you've done:** Made sure the categories exist so the system can match messages like "Food 50000" to the right budget category.
-
 ---
 
-## Step 11: Make Sure Exchange Rates Exist
+## Step 16: Make Sure Exchange Rates Exist
 
-Every expense is stored in both local currency (UGX, GMD, IDR) and British Pounds (GBP). The system needs exchange rates to do the conversion.
+The system converts local currency (UGX/GMD/IDR) to British Pounds (GBP).
 
-1. In Django Admin, click **"Exchange rates"** in the left sidebar (under "EXPENSES")
-2. You should see entries like:
+1. In Django Admin, click **"Exchange rates"** (under "EXPENSES")
+2. Check for entries like: GBP→UGX (5000), GBP→GMD (85), GBP→IDR (20000)
 
-| Base Currency | Local Currency | Rate | Effective Date |
-|---------------|---------------|------|----------------|
-| GBP | UGX | 5000.00 | 2026-01-01 |
-| GBP | GMD | 85.00 | 2026-01-01 |
-| GBP | IDR | 20000.00 | 2026-01-01 |
-
-**If the table is empty**, run:
-
+**If empty**, run:
 ```bash
 cd /home/user/Orphanages/backend
 python manage.py seed_data
 ```
 
-**If rates exist but are outdated**, update them:
-1. Click on a rate to edit it
-2. Update the **Rate** field to the current exchange rate
-3. Update the **Effective date** to today
-4. Click **"Save"**
+**If outdated**, click each rate and update the value. Search Google for "1 GBP to UGX" to find current rates.
 
-You can find current exchange rates at:
-- Google: search "1 GBP to UGX"
-- XE: https://www.xe.com/
-
-> **How conversion works:** If the exchange rate says 1 GBP = 5,000 UGX, and a caretaker logs `Food 50000`, the system calculates: 50,000 ÷ 5,000 = **£10.00 GBP**.
-
-**What you've done:** Made sure the system can convert local currency amounts to GBP for reporting.
+> **How it works:** 1 GBP = 5,000 UGX means `Food 50000` = 50,000 ÷ 5,000 = **£10.00 GBP**
 
 ---
 
-## Step 12: Send Your First Test Message
+## Step 17: Send Your First Test Message FROM Your Phone
 
-This is the moment of truth!
+The moment of truth.
 
 1. Open **WhatsApp** on your phone
-2. Open the chat with the Twilio sandbox number (the one you sent "join" to in Step 4)
-3. Type and send this exact message:
+2. Open the chat with the Meta test number (the one from Step 7)
+3. Type and send:
 
 ```
 Food 50000 rice Kalerwe
 ```
 
-4. Wait about 5-10 seconds
+4. Wait 5-10 seconds
 
-**What you should see back:**
-
-A reply message from the sandbox number saying something like:
+**You should see a reply like:**
 
 ```
-✓ Expense Logged #1
-Category: Food
-Amount: 50,000 UGX (£10.00 GBP)
-Description: rice Kalerwe
+*Expense Logged* #1
+
+*Category:* Food
+*Amount:* 50000 UGX (10.00 GBP)
+*Receipt:* none
 ```
 
-**If you don't get a reply within 30 seconds**, don't panic — go to the Troubleshooting section below.
-
-**What you've done:** Sent your first real WhatsApp message through the system and created an expense!
+**No reply after 30 seconds?** Go to Troubleshooting.
 
 ---
 
-## Step 13: Check That It Worked
+## Step 18: Check That It Worked
 
-Let's verify everything was saved correctly.
+### Check 1: Django Admin → Expenses
 
-### Check 1: The Expense in Django Admin
+New expense at the top with:
+- Category: Food
+- Amount (local): 50,000
+- Amount (GBP): ~£10.00
+- Channel: whatsapp
+- Status: logged
 
-1. Go to Django Admin
-2. Click **"Expenses"** in the left sidebar (under "EXPENSES")
-3. You should see a new expense at the top:
-   - **Category:** Food
-   - **Amount (local):** 50,000
-   - **Amount (GBP):** £10.00 (approximately)
-   - **Description:** rice Kalerwe
-   - **Channel:** whatsapp
-   - **Status:** logged
-   - **Submitted by:** The caretaker user you created in Step 9
+### Check 2: Django Admin → WhatsApp Incoming Messages
 
-### Check 2: The Raw Message
-
-1. In Django Admin, click **"WhatsApp incoming messages"** (under "WEBHOOKS")
-2. You should see a new entry with:
-   - **Body:** Food 50000 rice Kalerwe
-   - **From number:** Your phone number
-   - **Processed at:** A timestamp (not blank/empty)
+New entry with:
+- Body: Food 50000 rice Kalerwe
+- From number: your phone number
+- Processed at: a timestamp (not empty)
 
 ### Check 3: Celery Logs
 
-Look at the terminal where Celery is running. You should see something like:
-
+In the Celery terminal:
 ```
-[2026-03-06 12:00:00] INFO: Task webhooks.tasks.process_whatsapp_message received
-[2026-03-06 12:00:01] INFO: Expense #1 created: Food 50000.0 UGX (10.00 GBP) for site Kampala
-[2026-03-06 12:00:01] INFO: Task webhooks.tasks.process_whatsapp_message succeeded
+Task webhooks.tasks.process_whatsapp_message received
+Expense #1 created: Food 50000.0 UGX (10.00 GBP) for site Kampala
+Task webhooks.tasks.process_whatsapp_message succeeded
 ```
 
-**What you've done:** Verified the entire pipeline works — message received, processed, expense created, reply sent.
+---
+
+## Step 19: Test Error Cases
+
+Send these messages and check the replies:
+
+| Send This | Expected Reply |
+|-----------|---------------|
+| `hello` | Format instructions |
+| `Food abc` | "Amount must be a number..." |
+| `Pizza 50000` | "Category 'Pizza' not recognised..." |
+| `Fodd 50000` | Auto-corrected to "Food" or "Did you mean: Food?" |
+| `50000` | Format instructions |
+| `Medical 100000` | Expense logged (no description is OK) |
 
 ---
 
-## Step 14: Test Error Cases
+## Step 20: Generate a Permanent Access Token
 
-It's important to make sure the system handles mistakes gracefully. Try sending these messages and check the responses:
+The temporary token expires after 24 hours. For production you need a permanent one.
 
-### Test 1: Wrong Format
-Send: `hello`
-Expected reply: Instructions on the correct format ("Send expenses as: Category Amount [description]...")
+### 20a: Create a System User
 
-### Test 2: Invalid Amount
-Send: `Food abc`
-Expected reply: "Amount must be a number..."
+1. Go to **https://business.facebook.com/settings/**
+2. Left sidebar → **"Users"** → **"System Users"**
+3. Click **"Add"**
+4. Name: `CCD WhatsApp Bot`
+5. Role: **Admin**
+6. Click **"Create System User"**
 
-### Test 3: Wrong Category
-Send: `Pizza 50000`
-Expected reply: "Category 'Pizza' not recognised. Valid categories: Food, Medical, Education..."
+### 20b: Assign the App
 
-### Test 4: Close Spelling (Fuzzy Match)
-Send: `Fodd 50000`
-Expected reply: Either auto-corrected to "Food" (if close enough) or "Did you mean: Food?"
+1. Click on `CCD WhatsApp Bot`
+2. Click **"Add Assets"**
+3. Tab: **"Apps"**
+4. Find `CCD Orphanage WhatsApp`
+5. Toggle **"Full Control"**
+6. **"Save Changes"**
 
-### Test 5: Just a Number
-Send: `50000`
-Expected reply: Format instructions
+### 20c: Generate the Token
 
-### Test 6: Expense Without Description (Should Work)
-Send: `Medical 100000`
-Expected reply: Expense logged with a default description
+1. Click `CCD WhatsApp Bot`
+2. Click **"Generate New Token"**
+3. Select app: `CCD Orphanage WhatsApp`
+4. Token Expiration: **"Never"**
+5. Check these permissions:
+   - `whatsapp_business_messaging`
+   - `whatsapp_business_management`
+6. Click **"Generate Token"**
+7. **COPY IT NOW** — you can't see it again after closing this dialog
+8. Save it securely
 
-**What you've done:** Verified that the system gives helpful error messages instead of crashing when caretakers make mistakes.
+### 20d: Update `.env`
 
----
+```env
+WHATSAPP_ACCESS_TOKEN=your-new-permanent-token
+```
 
-## Step 15: Upgrade to a Real WhatsApp Number
-
-The sandbox is great for testing, but it has limitations:
-- The connection expires after 72 hours of inactivity
-- Everyone has to send the "join" message
-- It uses a shared Twilio number, not your own
-
-When you're ready for production, you need a real WhatsApp Business number.
-
-### 15a: Get a Twilio Phone Number
-
-1. In the Twilio Console, go to **Phone Numbers → Manage → Buy a Number**
-2. Search for a number (any country is fine — the number doesn't need to be in Uganda/Gambia/Indonesia, because WhatsApp works over the internet)
-3. Buy the number (~$1-1.50/month for a US number)
-4. Write down the number (e.g. `+1 234 567 8901`)
-
-### 15b: Enable WhatsApp on That Number
-
-1. Go to **Messaging → Senders → WhatsApp senders**
-2. Click **"Add a new WhatsApp sender"**
-3. Select the phone number you just bought
-4. Twilio will walk you through Meta's WhatsApp Business verification process:
-   - **Business name:** City Centre Dawah
-   - **Business category:** Non-Profit / Charity
-   - **Business website:** Your website URL
-   - **Business description:** "Orphanage expense management"
-5. Submit for review — **this can take 1-7 business days** for Meta to approve
-
-### 15c: Configure the Webhook for the Real Number
-
-Once approved:
-
-1. Go to **Messaging → Senders → WhatsApp senders**
-2. Click on your approved number
-3. Under **"Endpoint configuration"**, set:
-   - **"WHEN A MESSAGE COMES IN"**: `https://your-domain.com/webhooks/whatsapp/`
-   - Method: **HTTP POST**
-4. Click **"Save"**
-
-### 15d: Update Nothing in Your Code
-
-The code doesn't need to change! Twilio handles the routing. Your webhook URL stays the same. Your credentials stay the same.
-
-**What you've done:** Upgraded from the testing sandbox to a real WhatsApp Business number that caretakers can message directly.
+Restart Django:
+```bash
+# Local: Ctrl+C, then python manage.py runserver
+# Production: sudo systemctl restart gunicorn
+```
 
 ---
 
-## Step 16: Register Real Caretaker Phone Numbers
+## Step 21: Verify Your Business (Production)
 
-Now register each caretaker the same way you did in Step 9:
+Meta requires business verification for production use.
+
+1. Go to **https://business.facebook.com/settings/**
+2. Click **"Security Centre"** (or **"Business Info"**)
+3. Click **"Start Verification"**
+4. Provide:
+   - **Legal business name:** City Centre Dawah
+   - **Business address**
+   - **Phone number**
+   - **Website URL**
+   - **Document:** Business registration certificate, utility bill, or bank statement with the business name
+5. Submit and **wait 1-7 business days**
+
+**If rejected:** Usually the document didn't match the name exactly or was blurry. Fix and resubmit.
+
+---
+
+## Step 22: Add a Real Phone Number (Production)
+
+The test number is for development. For production, add a dedicated number.
+
+1. Go to WhatsApp → **API Setup**
+2. Click **"Add phone number"**
+3. Enter:
+   - **Display name:** `City Centre Dawah`
+   - **Phone number:** A number not currently on WhatsApp
+4. Verify with the SMS/call code
+5. Note the new **Phone Number ID**
+6. Update `.env`:
+   ```env
+   WHATSAPP_PHONE_NUMBER_ID=your-new-phone-number-id
+   ```
+7. Restart Django
+
+The webhook is set at the app level, so it still works — no need to reconfigure.
+
+---
+
+## Step 23: Register Real Caretaker Phone Numbers
+
+Register each caretaker the same way as Step 14:
 
 1. Django Admin → Users → Add User
-2. Set their phone number in the format `whatsapp:+XXXXXXXXXXX`
-3. Set their **site** to their orphanage
-4. Set their **role** to `caretaker`
+2. Phone: plain digits with country code (e.g. `256712345678`)
+3. Site: their orphanage
+4. Role: `caretaker`
 
-Each caretaker needs:
-- A WhatsApp account on their phone
-- Their phone number registered in Django Admin (matched exactly)
-- To know the message format: `Category Amount [description]`
-
-**Give each caretaker a simple instruction card:**
+**Give each caretaker an instruction card:**
 
 ```
 HOW TO LOG AN EXPENSE
 ━━━━━━━━━━━━━━━━━━━
 1. Open WhatsApp
-2. Send a message to: +1 234 567 8901  (your WhatsApp Business number)
+2. Send a message to: +XXX XXXX XXXX  (the CCD number)
 3. Type: Category Amount Description
 4. Example: Food 50000 rice Kalerwe
 
@@ -686,8 +748,6 @@ TO ATTACH A RECEIPT:
   Send a photo with the message as the caption
 ```
 
-**What you've done:** Registered all caretakers and given them instructions.
-
 ---
 
 ## Troubleshooting
@@ -696,166 +756,181 @@ TO ATTACH A RECEIPT:
 
 **Check 1: Is Django running?**
 ```bash
-# Local
-curl http://localhost:8000/health/
-# Production
-curl https://your-domain.com/health/
+curl http://localhost:8000/health/       # local
+curl https://your-domain.com/health/     # production
 ```
-You should see `{"status": "ok"}`. If not, start Django.
+Should return `{"status": "ok"}`.
 
-**Check 2: Is the webhook URL correct in Twilio?**
-- Go to Twilio Console → Messaging → WhatsApp Sandbox Settings
-- Check the webhook URL — is it exactly right? No typos? Ends with `/webhooks/whatsapp/`?
-- Is it set to POST (not GET)?
+**Check 2: Can Meta reach your server?**
+- Local: Is ngrok running? Did the URL change?
+- Production: Is HTTPS working? Is Nginx running?
 
-**Check 3: Can Twilio reach your server?**
-- If local: is ngrok running? Did the URL change?
-- If production: is the domain resolving? Is HTTPS working? Is Nginx running?
-
-Test it yourself:
-```bash
-curl -X POST https://your-domain.com/webhooks/whatsapp/
-```
-You should get a response (even if it's an error like 400 or 403 — that means the server IS reachable).
+**Check 3: Is "messages" subscribed?**
+Meta Dashboard → WhatsApp → Configuration → Webhook fields → "messages" must be toggled on.
 
 **Check 4: Is Celery running?**
 ```bash
-# Check the Celery terminal — is it still running?
-# Or on production:
-sudo systemctl status celery
+sudo systemctl status celery  # production
+# or check your Celery terminal (local)
 ```
-If Celery is not running, messages are received but never processed.
 
 **Check 5: Is Redis running?**
 ```bash
-redis-cli ping
+redis-cli ping  # should return PONG
 ```
-Should return `PONG`.
 
-**Check 6: Check Django logs for errors**
+**Check 6: Check Django logs**
 ```bash
-# Local: check the terminal where manage.py runserver is running
-# Production:
-sudo journalctl -u gunicorn -f
+sudo journalctl -u gunicorn -f   # production
+# or check the runserver terminal (local)
 ```
 
-**Check 7: Check Celery logs for errors**
+**Check 7: Check Celery logs**
 ```bash
-# Local: check the terminal where Celery is running
-# Production:
-sudo journalctl -u celery -f
+sudo journalctl -u celery -f     # production
+# or check the Celery terminal (local)
 ```
 
-### "I get an error about Twilio signature validation"
+**Check 8: Is the access token expired?**
+Temporary tokens expire after 24h. Generate a permanent one (Step 20).
 
-This means Twilio's security check is failing. Common causes:
+### "Webhook verification failed (Step 9)"
 
-1. **Wrong Auth Token in `.env`** — double-check it matches Twilio Console exactly
-2. **Wrong webhook URL in Twilio** — the URL must match exactly what your server sees (including `https://` vs `http://`)
-3. **Proxy issues** — if you're behind a load balancer or CDN, the URL Twilio signed might differ from what Django sees
+1. Is your server running and reachable from the internet?
+2. Does `WHATSAPP_VERIFY_TOKEN` in `.env` exactly match what you typed in Meta's dashboard?
+3. Is ngrok running? (local only)
+4. Check Django logs for the incoming GET request
 
-For local development, if `TWILIO_AUTH_TOKEN` is empty in `.env`, signature validation is skipped automatically.
+### "Expense created but amount is wrong or £0.00"
 
-### "Expense is created but the amount is wrong or £0.00"
-
-This means the exchange rate lookup failed or returned the wrong value.
-
-1. Check Django Admin → Exchange Rates
-2. Make sure there's a rate for the right currency pair (e.g. GBP → UGX)
-3. Make sure the effective date is not in the future
+Exchange rate lookup failed:
+1. Django Admin → Exchange Rates
+2. Check there's a rate for the right currency (e.g. GBP → UGX)
+3. Check the effective date is not in the future
 
 ### "Category not recognised"
 
-The caretaker typed a category name that doesn't match any category in the database.
-
-1. Check Django Admin → Budget Categories
-2. Make sure categories are created
-3. The match is fuzzy but strict (80% similarity) — "Fodd" matches "Food" but "Pizza" does not
+1. Django Admin → Budget Categories — are they created?
+2. Fuzzy match is strict (80%) — "Fodd" → "Food" works, "Pizza" → nothing
 
 ### "Your number is not registered"
 
-The phone number in the WhatsApp message doesn't match any user in Django.
+1. Check Celery logs for the exact number Meta sent
+2. Meta sends numbers as plain digits: `256712345678`
+3. The user's Phone field must match exactly — no `+`, no `whatsapp:`
 
-1. Check the exact phone number format in the Celery logs
-2. Make sure it matches the user's **Phone** field in Django Admin
-3. Remember the `whatsapp:+` prefix
+### "Reply not being sent"
 
-### "Sandbox connection expired"
-
-The Twilio sandbox disconnects after 72 hours of no messages. Just send the "join" message again from Step 4.
+1. Is `WHATSAPP_ACCESS_TOKEN` set and valid?
+2. Is `WHATSAPP_PHONE_NUMBER_ID` correct?
+3. Are you replying within 24 hours of the user's message? (Meta's rule)
+4. Check Celery logs for Graph API errors
 
 ---
 
 ## How Messages Work
 
-### The Message Format
+### Message Format
 
-Caretakers send messages in this format:
 ```
 Category Amount [description]
 ```
 
-| Part | Required? | Example | Rules |
-|------|-----------|---------|-------|
+| Part | Required | Example | Rules |
+|------|----------|---------|-------|
 | Category | Yes | `Food` | Must match a budget category (fuzzy matching allowed) |
-| Amount | Yes | `50000` | Must be a number. Commas are okay (`50,000`). This is in LOCAL currency. |
-| Description | No | `rice Kalerwe` | Free text. If omitted, defaults to "WhatsApp expense: {Category}" |
+| Amount | Yes | `50000` | Number in LOCAL currency. Commas OK (`50,000`) |
+| Description | No | `rice Kalerwe` | Free text. Defaults to "WhatsApp expense: {Category}" |
 
-### Attaching Receipt Photos
+### Receipt Photos
 
-Caretakers can attach a photo (the receipt) to their message:
-1. Open WhatsApp
-2. Tap the camera/attachment icon
-3. Take a photo of the receipt
-4. In the caption field, type the expense: `Food 50000 rice Kalerwe`
-5. Send
+1. Tap attachment/camera in WhatsApp
+2. Take a photo of the receipt
+3. Type the expense in the caption: `Food 50000 rice Kalerwe`
+4. Send
 
-The system will download the photo and attach it to the expense record.
+The system downloads the photo from Meta (via media ID → download URL) and attaches it to the expense.
 
-### What Replies Look Like
+### The 24-Hour Window
 
-**Success:**
+Meta's rule: you can only reply for free **within 24 hours** of the user's last message. This is perfect for us:
+1. Caretaker sends expense → starts 24h window
+2. System replies within seconds → well within window
+3. Window closes → doesn't matter, we only reply to messages
+
+### What Meta's Webhook JSON Looks Like
+
+When a caretaker sends "Food 50000 rice Kalerwe", Meta POSTs this to your webhook:
+
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "BUSINESS_ACCOUNT_ID",
+    "changes": [{
+      "value": {
+        "messaging_product": "whatsapp",
+        "metadata": {
+          "display_phone_number": "YOUR_NUMBER",
+          "phone_number_id": "PHONE_NUMBER_ID"
+        },
+        "contacts": [{
+          "profile": {"name": "Sarah Namutebi"},
+          "wa_id": "256712345678"
+        }],
+        "messages": [{
+          "from": "256712345678",
+          "id": "wamid.ABCdef123...",
+          "timestamp": "1709712000",
+          "text": {"body": "Food 50000 rice Kalerwe"},
+          "type": "text"
+        }]
+      },
+      "field": "messages"
+    }]
+  }]
+}
 ```
-✓ Expense Logged #123
-Category: Food
-Amount: 50,000 UGX (£10.00 GBP)
-Description: rice Kalerwe
+
+Key fields your server extracts:
+- **Message ID:** `messages[0].id` — for deduplication
+- **From number:** `messages[0].from` — e.g. `256712345678`
+- **Body:** `messages[0].text.body` — the actual message text
+- **Image media ID:** `messages[0].image.id` — if a photo was attached
+
+### How Replies Are Sent
+
+POST to Meta's Graph API:
+
 ```
+POST https://graph.facebook.com/v21.0/{phone_number_id}/messages
+Authorization: Bearer {access_token}
+Content-Type: application/json
 
-**Budget warning (non-blocking):**
-```
-✓ Expense Logged #124
-Category: Medical
-Amount: 200,000 UGX (£40.00 GBP)
-
-⚠️ Warning: Medical spending is now at 85% of monthly budget
-```
-
-**Error — bad format:**
-```
-Send expenses as:
-Category Amount [description]
-
-Example: Food 50000 rice Kalerwe
-
-Valid categories: Food, Medical, Education, Salaries, Utilities, Transport, Maintenance, Clothing, Miscellaneous
+{
+  "messaging_product": "whatsapp",
+  "to": "256712345678",
+  "text": {"body": "✓ Expense Logged #123\n..."}
+}
 ```
 
 ---
 
 ## Costs
 
-### Twilio Sandbox (Testing)
-- **Free** — no charges for sandbox messages
+### WhatsApp Cloud API
+- **API access:** Free
+- **Service conversations** (user messages first, we reply within 24h): **Free**
+- **1,000 free service conversations per month** (we use ~150)
+- **Monthly WhatsApp cost: $0**
 
-### Twilio Production
-- **Phone number:** ~$1.00-1.50/month
-- **WhatsApp messages:** ~$0.005 per message (half a penny)
-- **Estimated monthly cost for 3 orphanages:** If each site sends ~100 messages/month = 300 messages = **~$1.50 in messages + $1.50 for the number = ~$3/month total**
+### Infrastructure (Already Running)
+- Redis, Celery, PostgreSQL — already part of the Django setup
+- No extra cost
 
-### Infrastructure (Already Part of Your Setup)
-- Redis, Celery, PostgreSQL — already running for the Django app
-- No additional infrastructure cost for WhatsApp
+### Total: $0/month
+
+Compare: Twilio would cost ~$3/month. Not much, but $0 is better.
 
 ---
 
@@ -863,48 +938,95 @@ Valid categories: Food, Medical, Education, Salaries, Utilities, Transport, Main
 
 | Word | What It Means |
 |------|---------------|
-| **API** | Application Programming Interface — a way for two computer programs to talk to each other |
-| **Auth Token** | A secret key (like a password) that proves you're allowed to use a service |
-| **BSP** | Business Solution Provider — a company (like Twilio) that connects you to WhatsApp's business platform |
-| **Celery** | A Python program that runs tasks in the background (so the web server doesn't get slow) |
-| **Django** | The Python web framework this project is built with |
-| **Django Admin** | A built-in admin panel for managing data (users, expenses, categories, etc.) |
+| **Access Token** | Secret key that lets your server send messages via WhatsApp Cloud API |
+| **API** | Application Programming Interface — how two programs talk to each other |
+| **App Secret** | Secret key to verify webhook events really came from Meta |
+| **Celery** | Python background worker (processes messages without slowing the web server) |
+| **Cloud API** | Meta's direct WhatsApp API — no middleman, free for service messages |
+| **Django** | The Python web framework this project uses |
+| **Django Admin** | Built-in admin panel for managing data |
 | **Exchange Rate** | How much one currency is worth in another (e.g. 1 GBP = 5,000 UGX) |
-| **Fuzzy Matching** | When the system tries to figure out what you meant even if you spelled it slightly wrong |
-| **GBP** | British Pounds Sterling (£) — the reporting currency |
-| **GMD** | Gambian Dalasi — currency used in Gambia |
-| **HTTP POST** | A way of sending data over the internet (like submitting a form) |
-| **IDR** | Indonesian Rupiah — currency used in Indonesia |
-| **Idempotency** | Making sure the same message doesn't get processed twice (duplicate prevention) |
-| **Meta** | The company that owns WhatsApp (formerly Facebook) |
-| **ngrok** | A tool that creates a temporary public URL pointing to your local computer |
-| **Redis** | A very fast in-memory database used for caching and as Celery's message queue |
-| **Sandbox** | A free testing environment that simulates the real thing |
-| **SID** | Security Identifier — Twilio's name for an account ID |
-| **SMS** | Text message (the system can also send an SMS confirmation via Africa's Talking) |
-| **Twilio** | A cloud service that handles phone calls, SMS, and WhatsApp messaging |
-| **UGX** | Ugandan Shilling — currency used in Uganda |
-| **Webhook** | A URL that a service calls automatically when something happens (like a new message) |
-| **WhatsApp Business API** | The official way for businesses to send/receive WhatsApp messages programmatically |
+| **Fuzzy Matching** | System tries to understand close-enough spellings (e.g. "Fodd" → "Food") |
+| **GBP** | British Pounds (£) — the reporting currency |
+| **GMD** | Gambian Dalasi |
+| **Graph API** | Meta's API for sending messages and downloading media |
+| **HMAC-SHA256** | Cryptographic method that verifies webhooks came from Meta |
+| **IDR** | Indonesian Rupiah |
+| **Idempotency** | Preventing the same message from being processed twice |
+| **JSON** | A text format for structured data — what Meta sends in webhooks |
+| **Media ID** | Reference for photos — exchange it for a download URL via Graph API |
+| **Meta** | Company that owns WhatsApp (formerly Facebook) |
+| **Meta Business Account** | Organisation account in Meta's business tools |
+| **ngrok** | Tool that makes your local computer reachable from the internet |
+| **Phone Number ID** | Meta's internal ID for your WhatsApp number (not the number itself) |
+| **Redis** | Fast cache database — deduplication + Celery queue |
+| **Service Conversation** | Chat started by the user (not you) — free on Cloud API |
+| **System User** | Automated Meta Business user (for permanent tokens) |
+| **UGX** | Ugandan Shilling |
+| **Verify Token** | Secret string you choose — used during webhook setup |
+| **Webhook** | URL that a service calls when something happens (e.g. new message) |
 
 ---
 
 ## Quick Reference Checklist
 
-Use this checklist to make sure everything is set up:
+**Meta Account Setup:**
+- [ ] Meta Developer account created
+- [ ] Meta Business account created (or existing one identified)
+- [ ] Meta App created (`CCD Orphanage WhatsApp`)
+- [ ] WhatsApp product added to app
+- [ ] App ID and App Secret saved
 
-- [ ] Twilio account created and verified
-- [ ] Account SID and Auth Token saved
-- [ ] WhatsApp Sandbox activated (or production number approved)
-- [ ] Phone connected to sandbox (sent "join" message)
-- [ ] Webhook URL configured in Twilio (pointing to `/webhooks/whatsapp/`)
-- [ ] `TWILIO_ACCOUNT_SID` set in `.env`
-- [ ] `TWILIO_AUTH_TOKEN` set in `.env`
-- [ ] Django restarted after `.env` changes
-- [ ] Redis running (`redis-cli ping` returns `PONG`)
-- [ ] Celery running (showing `ready` in terminal)
-- [ ] Test caretaker user created in Django Admin with correct phone format
-- [ ] Budget categories exist in database
-- [ ] Exchange rates exist and are current
-- [ ] Test message sent and expense created successfully
-- [ ] Error cases tested (wrong format, bad category, etc.)
+**WhatsApp API Setup:**
+- [ ] Test phone number visible in API Setup
+- [ ] Phone Number ID saved
+- [ ] WhatsApp Business Account ID saved
+- [ ] Access Token generated
+- [ ] Test message sent FROM Meta TO your phone (Step 7)
+
+**Webhook Setup:**
+- [ ] ngrok running (local only)
+- [ ] Webhook URL set in Meta Developer Dashboard
+- [ ] Verify token set in both Meta dashboard and `.env`
+- [ ] Webhook verified (green checkmark)
+- [ ] "messages" subscribed in webhook fields
+
+**Server Configuration:**
+- [ ] All 5 `WHATSAPP_*` variables set in `.env`
+- [ ] Twilio variables commented out
+- [ ] Django restarted
+- [ ] Redis running (`redis-cli ping` → `PONG`)
+- [ ] Celery running (`ready` in terminal)
+
+**Data Setup:**
+- [ ] Test caretaker created (phone = plain digits, e.g. `256712345678`)
+- [ ] Budget categories exist
+- [ ] Exchange rates exist and current
+
+**End-to-End Testing:**
+- [ ] Message sent from phone → expense created → reply received
+- [ ] Error cases tested
+
+**Production:**
+- [ ] Permanent access token generated (System User)
+- [ ] Business verification submitted and approved
+- [ ] Real phone number added
+- [ ] All caretaker numbers registered
+- [ ] Instruction cards distributed
+
+---
+
+## Code Changes Required
+
+The current codebase uses Twilio for WhatsApp. To switch to Meta Cloud API direct, these files need updating:
+
+| File | What Changes | Why |
+|------|-------------|-----|
+| `webhooks/views.py` | Rewrite webhook handler | Meta sends JSON (not form-data), uses HMAC-SHA256 (not Twilio signature), needs GET verification endpoint |
+| `webhooks/whatsapp_reply.py` | Rewrite reply function | Send via Graph API `POST https://graph.facebook.com/v21.0/{phone_number_id}/messages` instead of Twilio |
+| `webhooks/tasks.py` | Minor: media handling | Meta gives media IDs, need to exchange for download URL via Graph API call |
+| `config/settings.py` | Add new env vars | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` |
+| `.env` / `.env.example` | Replace Twilio vars | `TWILIO_*` → `WHATSAPP_*` |
+| `requirements.txt` | Remove `twilio` | Use `requests` (already installed) instead |
+
+**Everything else stays the same:** Celery tasks, expense models, currency conversion, fuzzy matching, budget guardrails, receipt storage, admin views — all already provider-agnostic.
