@@ -7,8 +7,10 @@ class CoreConfig(AppConfig):
     verbose_name = "Core"
 
     def ready(self):
+        import logging
         import core.signals  # noqa: F401
         self._patch_google_sso_pkce()
+        logging.getLogger(__name__).warning("Google SSO PKCE patch loaded")
 
     @staticmethod
     def _patch_google_sso_pkce():
