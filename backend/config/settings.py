@@ -134,6 +134,9 @@ DATABASES = {
         default="postgres://orphanage_user:orphanage_pass@localhost:5433/orphanage_db",
     )
 }
+# Reuse DB connections for up to 10 minutes to prevent connection exhaustion
+# under load (3 Gunicorn workers + Celery workers sharing managed PostgreSQL).
+DATABASES["default"]["CONN_MAX_AGE"] = 600
 
 # Redis
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
