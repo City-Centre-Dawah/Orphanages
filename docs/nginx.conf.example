@@ -53,15 +53,13 @@ server {
         proxy_busy_buffers_size 32k;
     }
 
-    # Certbot will add SSL directives below this line
-    listen 443 ssl;
-    listen [::]:443 ssl;
-}
-
-# HTTP → HTTPS redirect (Certbot manages this block)
-server {
     listen 80;
     listen [::]:80;
-    server_name orphanages.ccdawah.org;
-    return 301 https://$host$request_uri;
+
+    # After initial setup, run Certbot to add SSL:
+    #   sudo certbot --nginx -d orphanages.ccdawah.org
+    # Certbot will automatically:
+    #   - Add ssl_certificate / ssl_certificate_key directives
+    #   - Change listen to 443 ssl
+    #   - Create an HTTP→HTTPS redirect server block
 }
