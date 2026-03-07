@@ -94,6 +94,7 @@ INSTALLED_APPS = [
     "storages",
     "rest_framework.authtoken",
     "import_export",
+    "axes",
     # Local apps
     "core",
     "expenses",
@@ -114,6 +115,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "axes.middleware.AxesMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -239,7 +241,21 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "20/minute",
+        "user": "60/minute",
+    },
 }
+
+# django-axes: brute-force login protection
+AXES_FAILURE_LIMIT = 5  # Lock after 5 failed attempts
+AXES_COOLOFF_TIME = 1  # 1 hour cooloff period
+AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]  # Lock by username+IP combo
+AXES_RESET_ON_SUCCESS = True  # Successful login clears failure count
 
 # Africa's Talking (SMS confirmation)
 AFRICAS_TALKING_USERNAME = env("AFRICAS_TALKING_USERNAME")
@@ -247,6 +263,7 @@ AFRICAS_TALKING_API_KEY = env("AFRICAS_TALKING_API_KEY")
 
 # Authentication backends
 AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
     "django.contrib.auth.backends.ModelBackend",
 ]
 
