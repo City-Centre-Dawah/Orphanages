@@ -19,6 +19,7 @@ Expense management system for City Centre Dawah's orphanages in Uganda, Gambia, 
 - **Reports:** Chart.js interactive dashboard + WeasyPrint PDF generation
 - **Admin theme:** django-unfold with CCD brand identity (`#982b2e` maroon)
 - **Admin SSO:** django-google-sso (Google OAuth2, restricted to `@ccdawah.org`)
+- **Login protection:** django-axes (brute-force lockout: 5 attempts, 1hr cooloff)
 - **Static files:** WhiteNoise (compressed static serving in production)
 - **Monitoring:** Sentry SDK (error tracking, performance monitoring)
 - **Import/export:** django-import-export (bulk data operations in admin)
@@ -128,6 +129,10 @@ Both webhook endpoints (`/webhooks/whatsapp/` and `/webhooks/telegram/`) return 
 
 ### Async webhook processing
 Webhook views validate, deduplicate (Redis + DB), and queue Celery tasks. Two-layer idempotency: Redis (fast, 24h TTL) and DB check in view (durable). Rate-limited at 60 req/min per IP via `django-ratelimit`.
+
+### Authentication security
+- **Admin login:** `django-axes` locks accounts after 5 failed attempts (1hr cooloff, by username+IP combo). Resets on successful login.
+- **API throttling:** DRF rate limiting — 20 req/min for anonymous (covers `/api/v1/auth/token/`), 60 req/min for authenticated users.
 
 ### Google OAuth SSO
 Admin login supports Google OAuth2 via `django-google-sso`. Restricted to `@ccdawah.org` domain. Configured with `GOOGLE_SSO_AUTO_CREATE_USERS = True` so users with a valid `@ccdawah.org` Google account are auto-provisioned on first login. Callback URL: `/google_sso/callback/`.
