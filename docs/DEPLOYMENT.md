@@ -62,7 +62,12 @@ Scalable architecture: 2 droplets, managed PostgreSQL, DO Spaces. Designed for 2
    python manage.py createsuperuser
    python manage.py collectstatic --noinput
    ```
-7. Set up Gunicorn systemd service (`/etc/systemd/system/gunicorn.service`):
+7. Create Gunicorn log directory and set up systemd service:
+   ```bash
+   sudo mkdir -p /var/log/gunicorn
+   sudo chown deploy:www-data /var/log/gunicorn
+   ```
+   Create `/etc/systemd/system/gunicorn.service`:
    ```ini
    [Unit]
    Description=CCD Orphanage Gunicorn
@@ -73,9 +78,7 @@ Scalable architecture: 2 droplets, managed PostgreSQL, DO Spaces. Designed for 2
    Group=www-data
    WorkingDirectory=/opt/orphanage/Orphanages/backend
    ExecStart=/opt/orphanage/venv/bin/gunicorn config.wsgi:application \
-       --bind unix:/opt/orphanage/Orphanages/backend/gunicorn.sock \
-       --workers 3 \
-       --timeout 120
+       -c /opt/orphanage/Orphanages/backend/gunicorn.conf.py
    Restart=on-failure
    RestartSec=5
 
